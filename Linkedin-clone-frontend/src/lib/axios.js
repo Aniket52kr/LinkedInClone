@@ -1,6 +1,6 @@
 import axios from "axios";
 
 export const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_SERVER_URL,
+  baseURL: "https://linkedinclone-w8w1.onrender.com",
   withCredentials: true,
 });
