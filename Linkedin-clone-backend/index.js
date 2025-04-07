@@ -8,7 +8,7 @@ const path = require("path");
 const cors = require("cors");
 const MongoStore = require("connect-mongo");
 const dotenv = require("dotenv");
-dotenv.config();
+require("dotenv.config()");
 
 // Routes
 const authRoutes = require("./controllers/authcontrollers");
