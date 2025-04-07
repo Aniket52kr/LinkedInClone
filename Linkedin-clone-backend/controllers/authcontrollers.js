@@ -7,6 +7,8 @@ const { generateToken } = require("../utils/helpers");
 const { sendWelcomeEmail } = require("../emails/emailHandlers");
 const isLoggedIn = require("../middleware/isLoggedIn");
 
+// Helper to determine if secure cookie should be used
+const isProduction = process.env.NODE_ENV === "production";
 
 // Registration Route
 router.post("/register", async (req, res) => {
@@ -33,20 +35,22 @@ router.post("/register", async (req, res) => {
       password: hashedPassword,
     });
 
-    let token = generateToken(newUser);
+    const token = generateToken(newUser);
     res.cookie("token", token, {
       httpOnly: true,
-      maxAge: 3 * 60 * 60 * 24 * 1000,
+      maxAge: 3 * 24 * 60 * 60 * 1000, // 3 days
       sameSite: "strict",
-      secure: process.env.NODE_ENV === "development",
+      secure: isProduction,
     });
+
     res.status(201).json({
       message: "User registered successfully",
       user: newUser,
-      token: token,
+      token,
     });
 
-    const profileUrl = process.env.CLIENT_URL + "/profile/" + newUser.firstName;
+    // Send welcome email
+    const profileUrl = `${process.env.CLIENT_URL}/profile/${newUser.firstName}`;
     try {
       await sendWelcomeEmail(
         newUser.email,
@@ -54,38 +58,43 @@ router.post("/register", async (req, res) => {
         newUser.lastName,
         profileUrl
       );
-    } catch (error) {
-      console.log("Error sending welcome email", error);
+    } catch (emailErr) {
+      console.error("Error sending welcome email:", emailErr);
     }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-
 // Login Route
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
+
   if (!email || !password) {
     return res.status(400).json({ message: "All fields are required" });
   }
+
   try {
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
     bcrypt.compare(password, user.password, (err, result) => {
       if (result) {
-        let token = generateToken(user);
+        const token = generateToken(user);
         res.cookie("token", token, {
           httpOnly: true,
-          maxAge: 3 * 60 * 60 * 24 * 1000,
+          maxAge: 3 * 24 * 60 * 60 * 1000, // 3 days
           sameSite: "strict",
-          secure: true,
+          secure: isProduction,
         });
-        res
-          .status(200)
-          .json({ message: "User logged in successfully", user, token });
+
+        res.status(200).json({
+          message: "User logged in successfully",
+          user,
+          token,
+        });
       } else {
         res.status(401).json({ message: "Invalid credentials" });
       }
@@ -95,23 +104,25 @@ router.post("/login", async (req, res) => {
   }
 });
 
-
-// logout route:-
+// Logout Route
 router.post("/logout", (req, res) => {
-  res.cookie("token", "");
+  res.cookie("token", "", {
+    httpOnly: true,
+    expires: new Date(0),
+    sameSite: "strict",
+    secure: isProduction,
+  });
   res.status(200).json({ message: "User logged out successfully" });
 });
 
-
-// me route:-
+// Me Route (Current User Info)
 router.get("/me", isLoggedIn, async (req, res) => {
   try {
     res.json(req.user);
   } catch (error) {
-    console.log("Error in getCurrentUser controller:", error);
+    console.error("Error in /me route:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 module.exports = router;

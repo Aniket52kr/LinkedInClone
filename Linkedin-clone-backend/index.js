@@ -7,17 +7,25 @@ const helmet = require("helmet");
 const path = require("path");
 const cors = require("cors");
 const MongoStore = require("connect-mongo");
+const dotenv = require("dotenv");
+dotenv.config();
+
+// Routes
 const authRoutes = require("./controllers/authcontrollers");
 const userRoutes = require("./routes/userRoutes");
 const postRoutes = require("./routes/postRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const connectionRoutes = require("./routes/connectionRoutes");
-require("dotenv").config();
 
 // CORS Middleware
+const allowedOrigins = [
+  "https://linkedin-clone-hqh8.onrender.com",
+  "http://localhost:5173",
+];
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: allowedOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -28,26 +36,29 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(helmet());
+app.use(cookieParser());
 
 // Database Connection
 mongoose
-  .connect(process.env.MONGODB_URI)
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB Connection Failed:", err));
 
 // Session and Cookie Setup
-app.use(cookieParser());
 app.use(
   expressSession({
-    secret: process.env.EXPRESS_SESSION_SECRET,
+    secret: process.env.EXPRESS_SESSION_SECRET || "secret_key",
     resave: false,
     saveUninitialized: false,
     store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production", // true on Render
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // Optional: 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     },
   })
 );
@@ -59,9 +70,14 @@ app.use("/posts", postRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/connections", connectionRoutes);
 
+// Root route for health check
+app.get("/", (req, res) => {
+  res.status(200).send("LinkedIn clone backend is running...");
+});
+
 // Error Handling
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error("Unhandled Error:", err);
   res.status(500).json({ message: "Something went wrong!" });
 });
 
