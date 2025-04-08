@@ -11,8 +11,8 @@ module.exports = async function (req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select("-password");
+    let decoded = jwt.verify(token, process.env.JWT_KEY);
+    let user = await User.findOne({ email: decoded.email }).select("-password");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -28,7 +28,8 @@ module.exports = async function (req, res, next) {
     } else if (err.name === "JsonWebTokenError") {
       return res.status(401).json({ message: "Invalid token. Please log in again." });
     } else {
-      res.status(500).json({ message: "Something went wrong. Please try again." });
+    res.status(500).json({ message: "Something went wrong. Please try again." });    
     }
+
   }
 };

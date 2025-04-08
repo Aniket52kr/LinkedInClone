@@ -11,10 +11,8 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { NetworkPage } from "./pages/NetworkPage";
 import { PostPage } from "./pages/PostPage";
 import { Profilepage } from "./pages/ProfilePage";
-
-
-
 function App() {
+
   const { data: authUser, isLoading } = useQuery({
     queryKey: ["authUser"],
     queryFn: async () => {
