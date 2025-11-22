@@ -104,18 +104,6 @@ npm run dev
 6. **Receive Notifications** for interactions on your posts.
 7. **Email Alerts** for user engagement.
 
----
-
-## 📸 Screenshots
-![Screenshot (249)](https://github.com/user-attachments/assets/2ddc012f-cfd4-43fa-95be-d11409b2abf4)
-![Screenshot (250)](https://github.com/user-attachments/assets/7407925b-a20f-457e-b512-6c82314fcb31)
-![Screenshot (251)](https://github.com/user-attachments/assets/b3bf1003-84f0-4c68-bee2-3cbf53b205a5)
-![Screenshot (254)](https://github.com/user-attachments/assets/d5996699-243d-4f92-baee-2b7fe63626a6)
-![Screenshot (252)](https://github.com/user-attachments/assets/d65e23d3-01e8-46d3-b664-b5f6c375eb2b)
-![Screenshot (253)](https://github.com/user-attachments/assets/340abc32-1e2d-4f65-a120-aa4ad1aa5dba)
-![Screenshot (256)](https://github.com/user-attachments/assets/c26acd73-85a5-4b00-ac35-c935c47d73c4)
-![Screenshot (257)](https://github.com/user-attachments/assets/fae80e14-2e81-451c-bf81-5ef95576bce3)
-
 
 ---
 
