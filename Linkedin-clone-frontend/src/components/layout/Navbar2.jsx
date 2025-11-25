@@ -43,7 +43,18 @@ export const Navbar2 = () => {
     },
   });
 
-  const unreadNotifications = notifications?.filter(n => !n.isRead).length || 0;
+
+  const markAllNotificationsReadMutation = useMutation({
+    mutationFn: async () => {
+      const res = await axiosInstance.put("/notifications/mark-all-read");
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["notifications"]);
+    },
+  });
+
+  const unreadNotifications = notifications?.filter(n => !n.read).length || 0;
   const unreadMessages = conversations?.reduce((acc, conv) => acc + conv.unreadCount, 0) || 0;
 
   const handleLogout = () => {
@@ -95,14 +106,23 @@ export const Navbar2 = () => {
               )}
             </Link>
 
-            <Link to='/notifications' className='text-neutral flex flex-col items-center relative p-2 hover:bg-gray-100 rounded'>
+            <Link 
+              to='/notifications' 
+              className='text-neutral flex flex-col items-center relative p-2 hover:bg-gray-100 rounded'
+              onClick={() => {
+                // Mark all notifications as read when clicking notifications
+                if (unreadNotifications > 0) {
+                  markAllNotificationsReadMutation.mutate();
+                }
+              }}
+            >
               <Bell size={20} />
               <span className='text-xs hidden md:block mt-1'>Notifications</span>
               {unreadNotifications > 0 && (
                 <span className='absolute top-1 right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center'>
                   {unreadNotifications > 9 ? '9+' : unreadNotifications}
                 </span>
-              )}
+              )} 
             </Link>
 
             <div className="relative group">
