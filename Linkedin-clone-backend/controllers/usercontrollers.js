@@ -157,4 +157,38 @@ const updateProfile = async (req, res) => {
 
 
 
-module.exports = { getSuggestedConnections, getPublicProfile, updateProfile };
+// Search users for messaging
+const searchUsers = async (req, res) => {
+  try {
+    const { query } = req.query;
+    const currentUserId = req.user._id || req.user.id;
+
+    if (!query) {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+
+    const users = await User.find({
+      $and: [
+        { _id: { $ne: currentUserId } }, // Exclude current user
+        {
+          $or: [
+            { firstName: { $regex: query, $options: "i" } },
+            { lastName: { $regex: query, $options: "i" } },
+            { userName: { $regex: query, $options: "i" } },
+            { email: { $regex: query, $options: "i" } },
+          ],
+        },
+      ],
+    })
+    .select("firstName lastName userName profilePicture email")
+    .limit(10);
+
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+
+
+module.exports = { getSuggestedConnections, getPublicProfile, updateProfile, searchUsers };

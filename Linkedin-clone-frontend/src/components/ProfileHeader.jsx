@@ -1,17 +1,18 @@
 import PropTypes from "prop-types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { axiosInstance } from "../lib/axios";
 import { toast } from "react-hot-toast";
-import { Camera, Clock, MapPin, UserCheck, UserPlus, X } from "lucide-react";
+import { Camera, Clock, MapPin, UserCheck, UserPlus, X, MessageSquare } from "lucide-react";
 import avatarImg from "../assets/images/avatar.png";
 import bannerImg from "../assets/images/banner.png";
-
 
 
 export const ProfileHeader = ({ userData, onSave, isOwnProfile }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState({});
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data: authUser } = useQuery({ queryKey: ["authUser"] });
@@ -78,6 +79,25 @@ export const ProfileHeader = ({ userData, onSave, isOwnProfile }) => {
       toast.error(error.response?.data?.message || "An error occurred");
     },
   });
+
+  // Handle message button click
+  const handleMessageUser = () => {
+    // Navigate to messages page
+    navigate("/messages");
+    
+    // Store the user data to start conversation immediately
+    const newConversation = {
+      user: userData,
+      lastMessage: {
+        content: "Start a conversation",
+        createdAt: new Date(),
+      },
+      unreadCount: 0,
+    };
+    
+    // You could also use localStorage or context to pass this data
+    localStorage.setItem("startChatWith", JSON.stringify(userData));
+  };
 
   const getConnectionStatus = useMemo(() => {
     if (isConnected) return "connected";
@@ -279,12 +299,25 @@ export const ProfileHeader = ({ userData, onSave, isOwnProfile }) => {
             </button>
           )
         ) : (
-          <div className="flex justify-center">{renderConnectionButton()}</div>
+          <div className="space-y-2">
+            {/* Message Button */}
+            <button
+              onClick={handleMessageUser}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-full hover:bg-blue-700 transition duration-300 flex items-center justify-center"
+            >
+              <MessageSquare size={20} className="mr-2" />
+              Message
+            </button>
+            
+            {/* Connection Button */}
+            <div className="flex justify-center">{renderConnectionButton()}</div>
+          </div>
         )}
       </div>
     </div>
   );
 };
+
 // PropTypes Validation
 ProfileHeader.propTypes = {
   userData: PropTypes.shape({

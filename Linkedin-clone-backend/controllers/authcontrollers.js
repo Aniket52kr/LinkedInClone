@@ -6,6 +6,8 @@ const User = require("../models/user");
 const { generateToken } = require("../utils/helpers");
 const { sendWelcomeEmail } = require("../emails/emailHandlers");
 
+
+
 // Registration Controller
 const register = async (req, res) => {
   const { firstName, lastName, userName, email, password } = req.body;
@@ -79,6 +81,9 @@ const register = async (req, res) => {
   }
 };
 
+
+
+
 // Login Controller
 const login = async (req, res) => {
   const { email, password } = req.body;
@@ -134,6 +139,9 @@ const login = async (req, res) => {
   }
 };
 
+
+
+
 // Logout Controller
 const logout = (req, res) => {
   req.session.destroy((err) => {
@@ -147,6 +155,9 @@ const logout = (req, res) => {
   });
 };
 
+
+
+
 // Get Current User Controller
 const getCurrentUser = async (req, res) => {
   // The middleware `isLoggedIn` should attach `req.user`
@@ -157,6 +168,8 @@ const getCurrentUser = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
 
 module.exports = {
   register,

@@ -9,8 +9,10 @@ try {
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
   });
+  console.log("Cloudinary configured successfully");
 } catch (error) {
   console.error("Error configuring Cloudinary:", error);
 }
 
-module.exports = { cloudinary };
+
+module.exports = cloudinary;

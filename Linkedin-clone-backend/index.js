@@ -7,20 +7,22 @@ const helmet = require("helmet");
 const path = require("path");
 const cors = require("cors");
 const MongoStore = require("connect-mongo");
+const http = require("http");
+const { initializeSocket } = require("./lib/socket");
 
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const postRoutes = require("./routes/postRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const connectionRoutes = require("./routes/connectionRoutes");
-
+const messageRoutes = require("./routes/messageRoutes");
 
 require("dotenv").config();
 
 // CORS Middleware
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: process.env.CLIENT_URL,
     credentials: true,
   })
 );
@@ -72,6 +74,7 @@ app.use("/users", userRoutes);
 app.use("/posts", postRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/connections", connectionRoutes);
+app.use("/messages", messageRoutes);
 
 // Error Handling
 app.use((err, req, res, next) => {
@@ -79,8 +82,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: "Something went wrong!" });
 });
 
+// Create HTTP server and initialize Socket.IO
+const server = http.createServer(app);
+initializeSocket(server);
+
 // Server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

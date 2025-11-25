@@ -22,7 +22,10 @@ export const NotificationsPage = () => {
 
   const { data: notifications, isLoading } = useQuery({
     queryKey: ["notifications"],
-    queryFn: () => axiosInstance.get("/notifications"),
+    queryFn: async () => {
+      const res = await axiosInstance.get("/notifications");
+      return res.data;
+    }
   });
 
   const { mutate: markAsReadMutation } = useMutation({
@@ -127,9 +130,9 @@ export const NotificationsPage = () => {
 
           {isLoading ? (
             <p>Loading notifications...</p>
-          ) : notifications && notifications.data.length > 0 ? (
+          ) : notifications && notifications.length > 0 ? (
             <ul>
-              {notifications.data.map((notification) => (
+              {notifications.map((notification) => (
                 <li
                   key={notification._id}
                   className={`bg-white border rounded-lg p-4 my-4 transition-all hover:shadow-md ${

@@ -11,8 +11,12 @@ import { NotificationsPage } from "./pages/NotificationsPage";
 import { NetworkPage } from "./pages/NetworkPage";
 import { PostPage } from "./pages/PostPage";
 import { Profilepage } from "./pages/ProfilePage";
-function App() {
+import { MessagesPage } from "./pages/MessagesPage";
+import { SocketProvider } from "./contexts/SocketContext";
 
+
+
+function App() {
   const { data: authUser, isLoading } = useQuery({
     queryKey: ["authUser"],
     queryFn: async () => {
@@ -32,10 +36,8 @@ function App() {
     return null;
   }
 
-  console.log("authUser", authUser);
-
   return (
-    <>
+    <SocketProvider>
       <div className="App w-full h-screen bg-white">
         {authUser ? <Navbar2 /> : <Navbar />}
         <Routes>
@@ -62,6 +64,10 @@ function App() {
             element={authUser ? <NetworkPage /> : <Navigate to={"/login"} />}
           />
           <Route
+            path="/messages"
+            element={authUser ? <MessagesPage /> : <Navigate to={"/login"} />}
+          />
+          <Route
             path="/post/:postId"
             element={authUser ? <PostPage /> : <Navigate to={"/login"} />}
           />
@@ -72,7 +78,7 @@ function App() {
         </Routes>
         <Toaster />
       </div>
-    </>
+    </SocketProvider>
   );
 }
 
