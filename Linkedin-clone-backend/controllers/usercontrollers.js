@@ -5,17 +5,25 @@ const { cloudinary } = require("../lib/cloudinary");
 
 const getSuggestedConnections = async (req, res) => {
   try {
-    const currentUser = await User.findById(req.user._id).select("connections");
+    const currentUser = await User.findById(req.user._id)
+      .select("connections skills experience education location");
 
     if (!currentUser) {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Get users who are not already connected and not the current user
     const suggestedUsers = await User.find({
-      _id: { $nin: [...currentUser.connections, req.user._id] }, 
+      _id: { 
+        $nin: [
+          ...(currentUser.connections || []), 
+          req.user._id
+        ] 
+      },
     })
-      .select("userName firstName lastName profilePicture headline")
-      .limit(3);
+      .select("userName firstName lastName profilePicture headline connections skills experience education location")
+      .limit(12) // Show more suggestions
+      .sort({ createdAt: -1 }); // Show newer users first
 
     res.json(suggestedUsers);
   } catch (error) {
