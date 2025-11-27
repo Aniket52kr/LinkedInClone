@@ -3,8 +3,6 @@ const router = express.Router();
 const messageController = require("../controllers/messageController");
 const isLoggedIn = require("../middleware/isLoggedIn");
 
-
-
 // Send message with file upload (images, documents)
 router.post("/send-file", isLoggedIn, messageController.upload.single('file'), messageController.sendMessageWithFile);
 
@@ -19,6 +17,9 @@ router.get("/messages/:userId", isLoggedIn, messageController.getMessages);
 
 // Delete a message
 router.delete("/:messageId", isLoggedIn, messageController.deleteMessage);
+
+// Edit a message
+router.put("/:messageId", isLoggedIn, messageController.editMessage);
 
 // Mark messages as read
 router.post("/read/:userId", isLoggedIn, messageController.markAsRead);

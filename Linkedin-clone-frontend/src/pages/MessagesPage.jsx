@@ -6,8 +6,6 @@ import { Search, Send, MessageCircle, ArrowLeft, UserPlus, X, Paperclip, Smile, 
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from 'emoji-picker-react';
 
-
-
 export const MessagesPage = () => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [message, setMessage] = useState("");
@@ -17,6 +15,7 @@ export const MessagesPage = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const { socket, onlineUsers, joinUser } = useSocket();
@@ -115,6 +114,23 @@ export const MessagesPage = () => {
     },
   });
 
+  // Edit message mutation
+  const editMessageMutation = useMutation({
+    mutationFn: async ({ messageId, content }) => {
+      const res = await axiosInstance.put(`/messages/${messageId}`, { content });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["conversations"]);
+      queryClient.invalidateQueries(["messages", selectedConversation?.user._id]);
+      setEditingMessage(null);
+      setMessage("");
+    },
+    onError: (error) => {
+      console.error("Failed to edit message:", error);
+    },
+  });
+
   // Join socket room when user is available
   useEffect(() => {
     if (authUser?._id) {
@@ -173,18 +189,38 @@ export const MessagesPage = () => {
         queryClient.invalidateQueries(["messages", selectedConversation?.user._id]);
       });
 
+      // Listen for message edits
+      socket.on('messageEdited', (editedMessage) => {
+        queryClient.invalidateQueries(["conversations"]);
+        if (selectedConversation && 
+            (editedMessage.sender === selectedConversation.user._id || 
+             editedMessage.recipient === selectedConversation.user._id)) {
+          queryClient.invalidateQueries(["messages", selectedConversation.user._id]);
+        }
+      });
+
       return () => {
         socket.off('newMessage');
         socket.off('messageDeleted');
+        socket.off('messageEdited');
       };
     }
   }, [socket, selectedConversation, queryClient]);
 
-  // Handle sending message
+  // Handle sending message (integrated with edit)
   const handleSendMessage = (e) => {
     e.preventDefault();
     if ((message.trim() || selectedFile) && selectedConversation) {
-      sendMessageMutation.mutate();
+      if (editingMessage) {
+        // If editing, save the edit instead of sending new message
+        editMessageMutation.mutate({
+          messageId: editingMessage,
+          content: message.trim()
+        });
+      } else {
+        // Normal send message
+        sendMessageMutation.mutate();
+      }
     }
   };
 
@@ -214,6 +250,31 @@ export const MessagesPage = () => {
   // Handle message deletion
   const handleDeleteMessage = (messageId) => {
     deleteMessageMutation.mutate(messageId);
+  };
+
+  // Handle message editing (WhatsApp-style)
+  const handleEditMessage = (message) => {
+    setEditingMessage(message._id);
+    setMessage(message.content);
+    // Focus on message input
+    setTimeout(() => {
+      const messageInput = document.querySelector('input[placeholder*="message"]');
+      if (messageInput) {
+        messageInput.focus();
+        messageInput.select();
+      }
+    }, 100);
+  };
+
+  // Handle cancel edit
+  const handleCancelEdit = () => {
+    setEditingMessage(null);
+    setMessage("");
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   // Start new conversation with user
@@ -440,15 +501,26 @@ export const MessagesPage = () => {
                           : "bg-white text-gray-800 border border-gray-200"
                       }`}
                     >
-                      {/* Delete button for own messages */}
-                      {msg.sender._id === authUser?._id && (
-                        <button
-                          onClick={() => handleDeleteMessage(msg._id)}
-                          className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                          title="Delete message"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                      {/* Action buttons for own messages */}
+                      {msg.sender._id === authUser?._id && !editingMessage && (
+                        <div className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                          <button
+                            onClick={() => handleEditMessage(msg)}
+                            className="bg-blue-500 text-white rounded-full p-1 hover:bg-blue-600"
+                            title="Edit message"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMessage(msg._id)}
+                            className="bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                            title="Delete message"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       )}
                       
                       {/* Handle different message types */}
@@ -483,6 +555,9 @@ export const MessagesPage = () => {
                         msg.sender._id === authUser?._id ? "text-blue-100" : "text-gray-500"
                       }`}>
                         {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
+                        {msg.isEdited && (
+                          <span className="ml-1">(edited)</span>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -492,8 +567,23 @@ export const MessagesPage = () => {
 
             {/* Message Input - Fixed at Bottom */}
             <div className="p-4 border-t border-gray-200 flex-shrink-0 bg-white">
-              {/* File Preview */}
-              {previewUrl && (
+              {/* Edit indicator */}
+              {editingMessage && (
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-xs text-blue-600 font-medium">
+                    Editing message...
+                  </div>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
+              {/* File Preview - Hide during edit */}
+              {!editingMessage && previewUrl && (
                 <div className="mb-2 p-2 bg-gray-50 rounded-lg flex items-center justify-between">
                   <img src={previewUrl} alt="Preview" className="h-16 w-16 object-cover rounded" />
                   <button
@@ -509,8 +599,8 @@ export const MessagesPage = () => {
                 </div>
               )}
 
-              {/* File Name Preview */}
-              {selectedFile && !previewUrl && (
+              {/* File Name Preview - Hide during edit */}
+              {!editingMessage && selectedFile && !previewUrl && (
                 <div className="mb-2 p-2 bg-gray-50 rounded-lg flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Paperclip size={16} className="text-gray-500" />
@@ -529,25 +619,29 @@ export const MessagesPage = () => {
               )}
 
               <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
-                {/* File Input */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,.pdf,.doc,.docx"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  id="file-input"
-                />
+                {/* File Input - Hide during edit */}
+                {!editingMessage && (
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,.pdf,.doc,.docx"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="file-input"
+                  />
+                )}
                 
                 <div className="flex items-center space-x-1">
-                  {/* File Attachment Button */}
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full"
-                  >
-                    <Paperclip size={20} />
-                  </button>
+                  {/* File Attachment Button - Hide during edit */}
+                  {!editingMessage && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full"
+                    >
+                      <Paperclip size={20} />
+                    </button>
+                  )}
 
                   {/* Emoji Button */}
                   <div className="relative" ref={emojiPickerRef}>
@@ -576,19 +670,34 @@ export const MessagesPage = () => {
                 {/* Message Input */}
                 <input
                   type="text"
-                  placeholder="Type a message..."
+                  placeholder={editingMessage ? "Edit message..." : "Type a message..."}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (editingMessage && e.key === 'Escape') {
+                      handleCancelEdit();
+                    }
+                  }}
                 />
                 
-                {/* Send Button */}
+                {/* Send/Edit Button */}
                 <button
                   type="submit"
                   className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  disabled={(!message.trim() && !selectedFile) || sendMessageMutation.isLoading}
+                  disabled={(!message.trim() && !selectedFile) || sendMessageMutation.isLoading || editMessageMutation.isLoading}
                 >
-                  <Send size={20} />
+                  {editingMessage ? (
+                    editMessageMutation.isLoading ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )
+                  ) : (
+                    <Send size={20} />
+                  )}
                 </button>
               </form>
             </div>

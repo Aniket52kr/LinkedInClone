@@ -285,3 +285,56 @@ exports.sendMessageWithFile = async (req, res) => {
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
+
+
+
+
+
+// Edit message
+exports.editMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { content } = req.body;
+    const senderId = req.user._id || req.user.id;
+
+    console.log('Edit request - User ID:', senderId);
+    console.log('Edit request - Message ID:', messageId);
+    console.log('Edit request - New content:', content);
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ message: 'Message not found' });
+    }
+
+    console.log('Message sender ID:', message.sender.toString());
+
+    // Check if user is the sender
+    if (message.sender.toString() !== senderId.toString()) {
+      console.log('Authorization failed');
+      return res.status(403).json({ message: 'Not authorized to edit this message' });
+    }
+
+    // Update message content and edit status
+    message.content = content;
+    message.isEdited = true;
+    message.editedAt = new Date();
+
+    await message.save();
+    await message.populate('sender', 'firstName lastName profilePicture');
+    await message.populate('recipient', 'firstName lastName profilePicture');
+
+    console.log('Message updated successfully');
+
+    // Emit socket event for real-time update
+    const io = req.app.get('io');
+    if (io) {
+      io.to(message.recipient.toString()).emit('messageEdited', message);
+      io.to(senderId).emit('messageEdited', message);
+    }
+
+    res.status(200).json(message);
+  } catch (error) {
+    console.error('Edit message error:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};

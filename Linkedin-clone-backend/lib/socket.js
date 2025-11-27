@@ -81,6 +81,12 @@ const initializeSocket = (server) => {
       // Emit to recipient
       socket.to(data.recipientId).emit("messageDeleted", data.messageId);
     });
+
+    // Handle message editing
+    socket.on("editMessage", (data) => {
+      // Emit to recipient
+      socket.to(data.recipientId).emit("messageEdited", data.message);
+    });
   });
 
   return io;
