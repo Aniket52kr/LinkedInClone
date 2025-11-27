@@ -15,4 +15,4 @@ try {
 }
 
 
-module.exports = cloudinary;
+module.exports = { cloudinary };

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { Edit2, X, Image, Video, FileText } from "lucide-react"; 
 import PropTypes from "prop-types"; 
 import { axiosInstance } from "../lib/axios";
 import toast from "react-hot-toast";
@@ -16,18 +17,36 @@ import { formatDistanceToNow } from "date-fns";
 import avtarImg from "../assets/images/avatar.png";
 import { PostAction } from "./PostAction";
 
-
 export const Post = ({ post }) => {
   const { postId } = useParams();
   const { data: authUser } = useQuery({ queryKey: ["authUser"] });
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [comments, setComments] = useState(post.comments || []);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(post?.content || "");
+  const [editImages, setEditImages] = useState(post?.images || []);
+  const [newFiles, setNewFiles] = useState([]);
+  const [imagesToRemove, setImagesToRemove] = useState([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const currentEditImage = useMemo(() => {
+    return editImages[currentImageIndex] || null;
+  }, [editImages, currentImageIndex]);
+
+  // Reset index if out of bounds
+  useEffect(() => {
+    if (currentImageIndex >= editImages.length && editImages.length > 0) {
+      setCurrentImageIndex(0);
+    }
+  }, [currentImageIndex, editImages.length]);
   const isOwner = authUser?._id === post?.author?._id;
   const isLiked = post?.likes?.includes(authUser?._id);
 
   const queryClient = useQueryClient();
 
+  
+
+  // delete post mutation
   const { mutate: deletePost, isPending: isDeletingPost } = useMutation({
     mutationFn: async () => {
       await axiosInstance.delete(`/posts/delete/${post._id}`);
@@ -41,6 +60,30 @@ export const Post = ({ post }) => {
     },
   });
 
+  // edit post mutation
+  const { mutate: editPost, isPending: isEditingPost } = useMutation({
+    mutationFn: async (formData) => {
+      const res = await axiosInstance.put(`/posts/edit/${post._id}`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient.invalidateQueries({ queryKey: ["userPosts"] });
+      toast.success("Post edited successfully");
+      setIsEditing(false);
+      setNewFiles([]);
+      setImagesToRemove([]);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    }, 
+  });
+
+  // create comment mutation
   const { mutate: createComment, isPending: isAddingComment } = useMutation({
     mutationFn: async (newComment) => {
       await axiosInstance.post(`/posts/${post._id}/comment`, {
@@ -58,6 +101,7 @@ export const Post = ({ post }) => {
     },
   });
 
+  // like post mutation
   const { mutate: likePost, isPending: isLikingPost } = useMutation({
     mutationFn: async () => {
       await axiosInstance.post(`/posts/${post._id}/like`);
@@ -99,6 +143,90 @@ export const Post = ({ post }) => {
     }
   };
 
+  const handleEditPost = () => {
+    setIsEditing(true);
+    setEditContent(post?.content || "");
+    setEditImages(post?.images || []);
+    setNewFiles([]);
+    setImagesToRemove([]);
+    setCurrentImageIndex(0);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditContent(post?.content || "");
+    setEditImages(post?.images || []);
+    setNewFiles([]);
+    setImagesToRemove([]);
+    setCurrentImageIndex(0);
+  };
+
+  const handleSaveEdit = () => {
+    const formData = new FormData();
+    formData.append("content", editContent);
+    
+    // Add images to remove
+    if (imagesToRemove.length > 0) {
+      formData.append("imagesToRemove", JSON.stringify(imagesToRemove));
+    }
+    
+    // Add new files
+    newFiles.forEach(file => {
+      formData.append("files", file);
+    });
+
+    editPost(formData);
+  };
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    const validFiles = files.filter(file => {
+      const isValidType = file.type.startsWith("image/") || 
+                         file.type.startsWith("video/") || 
+                         file.type === "application/pdf";
+      const isValidSize = file.size <= 50 * 1024 * 1024; // 50MB
+      return isValidType && isValidSize;
+    });
+    
+    setNewFiles(prev => [...prev, ...validFiles].slice(0, 10)); // Max 10 files
+  };
+
+  const removeNewFile = (index) => {
+    setNewFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const removeExistingImage = (publicId) => {
+    if (!publicId) return;
+  
+    setEditImages(prev => {
+      const newImages = prev.filter(img => img.publicId !== publicId);
+      // Reset current index if it's out of bounds
+      if (currentImageIndex >= newImages.length && newImages.length > 0) {
+        setCurrentImageIndex(0);
+      } else if (newImages.length === 0) {
+        setCurrentImageIndex(0);
+      }
+      return newImages;
+    });
+  
+    setImagesToRemove(prev => [...prev, publicId]);
+  };
+
+  const getFileIcon = (file) => {
+    if (file.type.startsWith("image/")) return <Image size={16} />;
+    if (file.type.startsWith("video/")) return <Video size={16} />;
+    if (file.type === "application/pdf") return <FileText size={16} />;
+    return null;
+  };
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % post.images.length);
+  };
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + post.images.length) % post.images.length);
+  };
+
   return (
     <div className="bg-white rounded-lg shadow mb-4">
       <div className="p-4">
@@ -125,44 +253,234 @@ export const Post = ({ post }) => {
             </div>
           </div>
           {isOwner && (
-            <button
-              onClick={handleDeletePost}
-              className="text-red-500 hover:text-red-700"
-            >
-              {isDeletingPost ? (
-                <Loader size={18} className="animate-spin" />
-              ) : (
-                <Trash2 size={18} />
+            <div className="flex gap-2">
+              {!isEditing && (
+                <button
+                  onClick={handleEditPost}
+                  className="text-gray-500 hover:text-blue-500 transition-colors"
+                  disabled={isEditingPost}
+                >
+                  <Edit2 size={16} />
+                </button>
               )}
-            </button>
+              <button
+                onClick={handleDeletePost}
+                className="text-red-500 hover:text-red-700"
+              >
+                {isDeletingPost ? (
+                  <Loader size={18} className="animate-spin" />
+                ) : (
+                  <Trash2 size={18} />
+                )}
+              </button>
+            </div>
           )}
         </div>
-        <p className="mb-4">{post?.content}</p>
 
-        {/* Image, Video, PDF Rendering */}
-        {post?.fileUrl && post?.fileType === "image" && (
-          <div className="mt-4">
-            <img
-              src={post?.fileUrl}  // This is the Cloudinary image URL
-              alt="Post content"
-              className="rounded-lg w-full mb-4"
+        {/* Edit Form or Content Display */}
+        {isEditing ? (
+          <div className="mb-4">
+            <textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              className="w-full p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={3}
+              placeholder="What do you want to talk about?"
             />
+            
+            {/* Existing Images in Edit Mode - Clean */}
+            {editImages.length > 0 && (
+              <div className="mt-3">
+                <p className="text-sm text-gray-600 mb-2">Current images:</p>
+                <div className="relative border rounded-lg overflow-hidden">
+                  {editImages[currentImageIndex] && (
+                    <img
+                      src={editImages[currentImageIndex].url}
+                      alt="Current image"
+                      className="w-full h-90 object-cover"
+                    />
+                  )}
+                  
+                  {/* Navigation for edit mode - Only show if multiple images */}
+                  {editImages.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentImageIndex((prev) => (prev - 1 + editImages.length) % editImages.length)}
+                        className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 text-gray-800 rounded-full p-2 hover:bg-opacity-100 shadow-lg transition-all"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setCurrentImageIndex((prev) => (prev + 1) % editImages.length)}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 text-gray-800 rounded-full p-2 hover:bg-opacity-100 shadow-lg transition-all"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
+      
+                  {/* Remove button with proper publicId */}
+                  {editImages[currentImageIndex] && (
+                    <button
+                      type="button"
+                      onClick={() => removeExistingImage(editImages[currentImageIndex].publicId)}
+                      className="absolute top-2 right-2 bg-white bg-opacity-90 text-red-500 rounded-full p-2 hover:bg-opacity-100 shadow-lg transition-all"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* New Files in Edit Mode */}
+            {newFiles.length > 0 && (
+              <div className="mt-3">
+                <p className="text-sm text-gray-600 mb-2">New files to add:</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {newFiles.map((file, index) => (
+                    <div key={index} className="relative border rounded-lg p-2">
+                      <div className="flex items-center space-x-2">
+                        {getFileIcon(file)}
+                        <span className="text-xs truncate">{file.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeNewFile(index)}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add More Files Button */}
+            <div className="mt-3">
+              <input
+                type="file"
+                multiple
+                accept="image/*,video/*,.pdf"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="edit-file-input"
+              />
+              <label
+                htmlFor="edit-file-input"
+                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-full cursor-pointer hover:bg-gray-200 text-sm"
+              >
+                Add More Media
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-3">
+              <button
+                onClick={handleCancelEdit}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-full"
+                disabled={isEditingPost}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50"
+                disabled={isEditingPost}
+              >
+                {isEditingPost ? <Loader size={16} /> : "Save"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="mb-4">{post?.content}</p>
+            
+            {/* Edited Timestamp */}
+            {post?.isEdited && (
+              <p className="text-xs text-gray-500 mb-4">
+                Edited {formatDistanceToNow(new Date(post.editedAt), {
+                  addSuffix: true,
+                })}
+              </p>
+            )}
+          </>
+        )}
+
+        {/* Multiple Images Slider - Clean */}
+        {post?.images && post.images.length > 0 && (
+          <div className="mt-4">
+            <div className="relative border rounded-lg overflow-hidden">
+              <img
+                src={post.images[currentImageIndex].url}
+                alt="Post content"
+                className="w-full h-90 object-cover"
+              />
+              
+              {/* Navigation arrows - Only show if multiple images */}
+              {post.images.length > 1 && (
+                <>
+                  <button
+                    onClick={prevImage}
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 text-gray-800 rounded-full p-3 hover:bg-opacity-100 shadow-lg transition-all"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={nextImage}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 text-gray-800 rounded-full p-3 hover:bg-opacity-100 shadow-lg transition-all"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         )}
 
-        {post?.fileUrl && post?.fileType === "video" && (
+        {/* Video */}
+        {post?.videoUrl && (
           <div className="mt-4">
-            <video controls className="w-full rounded-lg mb-4">
-              <source src={post?.fileUrl} type="video/mp4" />
+            <video controls className="w-full rounded-lg">
+              <source src={post.videoUrl} type="video/mp4" />
             </video>
           </div>
         )}
 
-        {post?.fileUrl && post?.fileType === "pdf" && (
-          <div className="mt-4">
-            <a href={post?.fileUrl} target="_blank" rel="noopener noreferrer">
-              View PDF
-            </a>
+        {/* Document */}
+        {post?.documentUrl && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="bg-red-100 p-2 rounded mr-3">
+                  📄
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">PDF Document</p>
+                  <p className="text-xs text-gray-600">Click to view</p>
+                </div>
+              </div>
+            
+              <a 
+                href={post.documentUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600"
+              >
+                View PDF
+              </a>
+            </div>
           </div>
         )}
 
@@ -246,8 +564,18 @@ Post.propTypes = {
   post: PropTypes.shape({
     _id: PropTypes.string.isRequired,
     content: PropTypes.string.isRequired,
-    fileUrl: PropTypes.string,
-    fileType: PropTypes.string,
+    images: PropTypes.arrayOf(
+      PropTypes.shape({
+        url: PropTypes.string.isRequired,
+        publicId: PropTypes.string.isRequired,
+      })
+    ),
+    videoUrl: PropTypes.string,
+    videoPublicId: PropTypes.string,
+    documentUrl: PropTypes.string,
+    documentPublicId: PropTypes.string,
+    isEdited: PropTypes.bool,
+    editedAt: PropTypes.string,
     createdAt: PropTypes.string.isRequired,
     author: PropTypes.shape({
       _id: PropTypes.string.isRequired,

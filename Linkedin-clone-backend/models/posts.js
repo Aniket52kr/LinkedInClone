@@ -11,15 +11,29 @@ const postSchema = new mongoose.Schema(
     content: { 
       type: String 
     },
-    fileUrl: { 
+    images: [{
+      url: String,
+      publicId: String,
+    }],
+    videoUrl: { 
       type: String 
     },
-    fileType: { 
+    videoPublicId: {
+      type: String,
+    },
+    documentUrl: { 
       type: String 
-    }, 
-    filePublicId: { 
-      type: String 
-    }, 
+    },
+    documentPublicId: {
+      type: String,
+    },
+    isEdited: {
+      type: Boolean,
+      default: false,
+    },
+    editedAt: {
+      type: Date,
+    },
     likes: [
       {
         type: mongoose.Schema.Types.ObjectId,

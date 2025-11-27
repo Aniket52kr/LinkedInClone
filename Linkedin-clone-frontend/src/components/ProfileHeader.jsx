@@ -280,6 +280,16 @@ export const ProfileHeader = ({ userData, onSave, isOwnProfile }) => {
           </div>
         </div>
 
+        {/* Connection Count */}
+        <div className="text-center mt-4">
+          <p className="text-gray-600">
+            <span className="font-semibold text-gray-900">
+              {userData.connections?.length || 0}
+            </span>{" "}
+            connections
+          </p>
+        </div>
+
         {isOwnProfile ? (
           isEditing ? (
             <button

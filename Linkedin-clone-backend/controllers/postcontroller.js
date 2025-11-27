@@ -2,6 +2,7 @@ const { sendCommentNotificationEmail } = require("../emails/emailHandlers");
 const { cloudinary } = require("../lib/cloudinary");
 const Post = require("../models/posts");
 const Notification = require("../models/notifications");
+const User = require("../models/user");
 
 
 // get feed post route:-
@@ -22,56 +23,70 @@ const getFeedPosts = async (req, res) => {
 };
 
 
+
+
 // create post route:-
 const createPost = async (req, res) => {
   try {
     const { content } = req.body;
-    let fileUrl = null;
-    let fileType = null;
-    let filePublicId = null;
+    let images = [];
+    let videoUrl = null;
+    let videoPublicId = null;
+    let documentUrl = null;
+    let documentPublicId = null;
 
-    // Ensure file is received
-    if (req.file) {
-      let fileResult;
+    // Handle multiple file uploads
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        let fileResult;
 
-      // Handle file uploads (image, video, pdf)
-      if (req.file.mimetype.startsWith("image")) {
-        fileResult = await cloudinary.uploader.upload(req.file.path, {
-          folder: "posts",
-        });
-        fileType = "image";
-      } else if (req.file.mimetype.startsWith("video")) {
-        fileResult = await cloudinary.uploader.upload(req.file.path, {
-          folder: "posts",
-          resource_type: "video",
-        });
-        fileType = "video";
-      } else if (req.file.mimetype === "application/pdf") {
-        fileResult = await cloudinary.uploader.upload(req.file.path, {
-          folder: "posts",
-          resource_type: "raw",
-        });
-        fileType = "pdf";
-      }
+        if (file.mimetype.startsWith("image")) {
+          fileResult = await cloudinary.uploader.upload(file.path, {
+            folder: "posts",
+          });
+          images.push({
+            url: fileResult.secure_url,
+            publicId: fileResult.public_id,
+          });
+        } else if (file.mimetype.startsWith("video")) {
+          fileResult = await cloudinary.uploader.upload(file.path, {
+            folder: "posts",
+            resource_type: "video",
+          });
+          videoUrl = fileResult.secure_url;
+          videoPublicId = fileResult.public_id;
+        } else if (file.mimetype === "application/pdf") {
+          fileResult = await cloudinary.uploader.upload(file.path, {
+            folder: "posts",
+            resource_type: "raw",
+          });
+          documentUrl = fileResult.secure_url;
+          documentPublicId = fileResult.public_id;
+        }
 
-      if (fileResult) {
-        fileUrl = fileResult.secure_url;
-        filePublicId = fileResult.public_id;
+        // Clean up temporary file
+        const fs = require("fs");
+        fs.unlinkSync(file.path);
       }
     }
 
-    // Save post with content and fileUrl
+    // Create new post
     const newPost = new Post({
-      author: req.user._id,
       content,
-      fileUrl,  
-      fileType, 
-      filePublicId, 
+      author: req.user._id,
+      images,
+      videoUrl,
+      videoPublicId,
+      documentUrl,
+      documentPublicId,
     });
 
     await newPost.save();
-    console.log("New Post:", newPost); 
-    res.status(201).json(newPost);  
+
+    // Populate author details
+    await newPost.populate("author", "firstName userName profilePicture headline");
+
+    res.status(201).json(newPost);
   } catch (error) {
     console.error("Error creating post:", error);
     res.status(500).json({ message: "Server Error", error: error.message });
@@ -202,6 +217,146 @@ const likePost = async (req, res) => {
 };
 
 
+
+
+
+// get users posts
+const getUserPosts = async (req, res) => {
+  try {
+    const { userName } = req.params;
+
+    // find user by username
+    // const User = require("../models/user");
+    const user = await User.findOne({ userName });
+
+    if(!user) {
+      return res.status(404).json({ message: "User not found" });
+    };
+
+    const posts = await Post.find({ author: user._id })
+      .populate("author", "firstName userName profilePicture headline", )
+      .populate("comments.user", "firstName profilePicture")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(posts);
+  } catch (error) {
+    console.error("Error fetching user posts: ", error);
+    res.status(500).json({ message: "server Error", error: error.message });
+  }
+};
+
+
+
+
+
+// edit post route:-
+const editPost = async (req, res) => {
+  try {
+    const { content, imagesToAdd, imagesToRemove, newVideo, newDocument } = req.body;
+    const postId = req.params.id;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    // Check if user is the author
+    if (post.author.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Unauthorized to edit this post" });
+    }
+
+    // Update content
+    if (content !== undefined) {
+      post.content = content;
+    }
+
+    // Handle image removals
+    if (imagesToRemove && imagesToRemove.length > 0) {
+      for (const publicId of imagesToRemove) {
+        // Delete from Cloudinary
+        await cloudinary.uploader.destroy(publicId);
+        // Remove from post
+        post.images = post.images.filter(img => img.publicId !== publicId);
+      }
+    }
+
+    // Handle new image additions
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        if (file.mimetype.startsWith("image")) {
+          const fileResult = await cloudinary.uploader.upload(file.path, {
+            folder: "posts",
+          });
+          post.images.push({
+            url: fileResult.secure_url,
+            publicId: fileResult.public_id,
+          });
+        }
+        // Clean up temporary file
+        const fs = require("fs");
+        fs.unlinkSync(file.path);
+      }
+    }
+
+    // Handle video replacement
+    if (newVideo && req.files) {
+      const videoFile = req.files.find(file => file.mimetype.startsWith("video"));
+      if (videoFile) {
+        // Delete old video if exists
+        if (post.videoPublicId) {
+          await cloudinary.uploader.destroy(post.videoPublicId, { resource_type: "video" });
+        }
+        // Upload new video
+        const videoResult = await cloudinary.uploader.upload(videoFile.path, {
+          folder: "posts",
+          resource_type: "video",
+        });
+        post.videoUrl = videoResult.secure_url;
+        post.videoPublicId = videoResult.public_id;
+        // Clean up temporary file
+        const fs = require("fs");
+        fs.unlinkSync(videoFile.path);
+      }
+    }
+
+    // Handle document replacement
+    if (newDocument && req.files) {
+      const docFile = req.files.find(file => file.mimetype === "application/pdf");
+      if (docFile) {
+        // Delete old document if exists
+        if (post.documentPublicId) {
+          await cloudinary.uploader.destroy(post.documentPublicId, { resource_type: "raw" });
+        }
+        // Upload new document
+        const docResult = await cloudinary.uploader.upload(docFile.path, {
+          folder: "posts",
+          resource_type: "raw",
+        });
+        post.documentUrl = docResult.secure_url;
+        post.documentPublicId = docResult.public_id;
+        // Clean up temporary file
+        const fs = require("fs");
+        fs.unlinkSync(docFile.path);
+      }
+    }
+
+    // Mark as edited
+    post.isEdited = true;
+    post.editedAt = new Date();
+
+    await post.save();
+
+    // Populate author details
+    await post.populate("author", "firstName userName profilePicture headline");
+
+    res.status(200).json(post);
+  } catch (error) {
+    console.error("Error editing post:", error);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+
 module.exports = {
   getFeedPosts,
   createPost,
@@ -209,4 +364,6 @@ module.exports = {
   getPostById,
   createComment,
   likePost,
+  getUserPosts,
+  editPost,
 };

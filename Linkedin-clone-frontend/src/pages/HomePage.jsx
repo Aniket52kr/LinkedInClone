@@ -1,7 +1,7 @@
 import { axiosInstance } from "../lib/axios";
 import { Sidebar } from "../components/Sidebar";
 import { useQuery } from "@tanstack/react-query";
-import { PostCreations } from "../components/PostCreations";
+import { PostCreation } from "../components/PostCreations";
 import { Post } from "../components/Post";
 import { Users } from "lucide-react";
 import { RecommendedUser } from "../components/RecommendedUser";
@@ -49,7 +49,7 @@ export const HomePage = () => {
 
       {/* Posts */}
       <div className="col-span-1 lg:col-span-2 order-first lg:order-none">
-        <PostCreations user={authUser} />
+        <PostCreation user={authUser} />
 
         {postsLoading ? (
           <div className="text-center">Loading posts...</div>
