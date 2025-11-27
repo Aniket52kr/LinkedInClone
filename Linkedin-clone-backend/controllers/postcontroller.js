@@ -249,11 +249,17 @@ const getUserPosts = async (req, res) => {
 
 
 
-// edit post route:-
+// edit post route
 const editPost = async (req, res) => {
   try {
-    const { content, imagesToAdd, imagesToRemove, newVideo, newDocument } = req.body;
-    const postId = req.params.id;
+    console.log("Edit post request body:", req.body);
+    console.log("Edit post files:", req.files);
+    
+    const { content } = req.body;
+    const postId = req.params.postId; // Fix: should be postId not id
+    const imagesToRemove = req.body.imagesToRemove ? JSON.parse(req.body.imagesToRemove) : [];
+
+    console.log("Parsed imagesToRemove:", imagesToRemove);
 
     const post = await Post.findById(postId);
     if (!post) {
@@ -272,71 +278,45 @@ const editPost = async (req, res) => {
 
     // Handle image removals
     if (imagesToRemove && imagesToRemove.length > 0) {
+      console.log("Removing images:", imagesToRemove);
       for (const publicId of imagesToRemove) {
-        // Delete from Cloudinary
-        await cloudinary.uploader.destroy(publicId);
-        // Remove from post
-        post.images = post.images.filter(img => img.publicId !== publicId);
+        try {
+          // Delete from Cloudinary
+          await cloudinary.uploader.destroy(publicId);
+          console.log("Deleted from Cloudinary:", publicId);
+          // Remove from post
+          post.images = post.images.filter(img => img.publicId !== publicId);
+        } catch (error) {
+          console.error("Failed to delete image from Cloudinary:", publicId, error);
+        }
       }
     }
 
     // Handle new image additions
     if (req.files && req.files.length > 0) {
+      console.log("Processing new files:", req.files.length);
       for (const file of req.files) {
-        if (file.mimetype.startsWith("image")) {
-          const fileResult = await cloudinary.uploader.upload(file.path, {
-            folder: "posts",
-          });
-          post.images.push({
-            url: fileResult.secure_url,
-            publicId: fileResult.public_id,
-          });
+        if (file.mimetype.startsWith("image/")) {
+          try {
+            const fileResult = await cloudinary.uploader.upload(file.path, {
+              folder: "linkedin/posts", // Use consistent folder name
+            });
+            post.images.push({
+              url: fileResult.secure_url,
+              publicId: fileResult.public_id,
+            });
+            console.log("Uploaded new image:", fileResult.public_id);
+          } catch (error) {
+            console.error("Failed to upload image:", error);
+          }
         }
         // Clean up temporary file
-        const fs = require("fs");
-        fs.unlinkSync(file.path);
-      }
-    }
-
-    // Handle video replacement
-    if (newVideo && req.files) {
-      const videoFile = req.files.find(file => file.mimetype.startsWith("video"));
-      if (videoFile) {
-        // Delete old video if exists
-        if (post.videoPublicId) {
-          await cloudinary.uploader.destroy(post.videoPublicId, { resource_type: "video" });
+        try {
+          const fs = require("fs");
+          fs.unlinkSync(file.path);
+        } catch (error) {
+          console.error("Failed to delete temp file:", error);
         }
-        // Upload new video
-        const videoResult = await cloudinary.uploader.upload(videoFile.path, {
-          folder: "posts",
-          resource_type: "video",
-        });
-        post.videoUrl = videoResult.secure_url;
-        post.videoPublicId = videoResult.public_id;
-        // Clean up temporary file
-        const fs = require("fs");
-        fs.unlinkSync(videoFile.path);
-      }
-    }
-
-    // Handle document replacement
-    if (newDocument && req.files) {
-      const docFile = req.files.find(file => file.mimetype === "application/pdf");
-      if (docFile) {
-        // Delete old document if exists
-        if (post.documentPublicId) {
-          await cloudinary.uploader.destroy(post.documentPublicId, { resource_type: "raw" });
-        }
-        // Upload new document
-        const docResult = await cloudinary.uploader.upload(docFile.path, {
-          folder: "posts",
-          resource_type: "raw",
-        });
-        post.documentUrl = docResult.secure_url;
-        post.documentPublicId = docResult.public_id;
-        // Clean up temporary file
-        const fs = require("fs");
-        fs.unlinkSync(docFile.path);
       }
     }
 
@@ -349,6 +329,7 @@ const editPost = async (req, res) => {
     // Populate author details
     await post.populate("author", "firstName userName profilePicture headline");
 
+    console.log("Final post after edit:", post.images.length, "images");
     res.status(200).json(post);
   } catch (error) {
     console.error("Error editing post:", error);

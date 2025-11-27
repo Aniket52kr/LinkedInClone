@@ -168,6 +168,7 @@ export const Post = ({ post }) => {
     // Add images to remove
     if (imagesToRemove.length > 0) {
       formData.append("imagesToRemove", JSON.stringify(imagesToRemove));
+      console.log("Added imagesToRemove to formData:", JSON.stringify(imagesToRemove));
     }
     
     // Add new files
@@ -175,6 +176,11 @@ export const Post = ({ post }) => {
       formData.append("files", file);
     });
 
+    // Debug log formData contents
+    console.log("FormData contents:");
+    for (let [key, value] of formData.entries()) {
+      console.log(key, value);
+    }
     editPost(formData);
   };
 

@@ -48,6 +48,6 @@ router.get("/:id", isLoggedIn, getPostById);
 router.post("/:id/comment", isLoggedIn, createComment);
 router.post("/:id/like", isLoggedIn, likePost);
 router.get("/user/:userName", isLoggedIn, getUserPosts);
-router.put("/edit/:id", isLoggedIn, upload.array('files', 10), editPost);  
+router.put("/edit/:postId", isLoggedIn, upload.array('files', 10), editPost);  
 
 module.exports = router;
