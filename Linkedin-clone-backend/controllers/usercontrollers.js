@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const User = require("../models/user");
+const { emitSocketEvent } = require("../lib/socket");
 const { cloudinary } = require("../lib/cloudinary");
 const { sendProfileViewEmail } = require("../emails/emailHandlers");
 const Notification = require("../models/notifications");
@@ -202,14 +203,17 @@ const searchUsers = async (req, res) => {
 
 
 
-// Add profile view tracking function
+
 const trackProfileView = async (req, res) => {
   try {
+    console.log("PROFILE VIEW TRACKING STARTED");
     const { userId } = req.params;
     const viewerId = req.user._id;
+    console.log("Viewer ID:", viewerId, "Profile Owner ID:", userId);
 
     // Don't track own profile views
     if (viewerId.toString() === userId) {
+      console.log("Own profile view - not tracking");
       return res.status(200).json({ message: "Own profile view not tracked" });
     }
 
@@ -218,21 +222,28 @@ const trackProfileView = async (req, res) => {
     const viewer = await User.findById(viewerId, "firstName userName profilePicture");
 
     if (!profileOwner || !viewer) {
+      console.log("User not found - profileOwner:", !!profileOwner, "viewer:", !!viewer);
       return res.status(404).json({ message: "User not found" });
     }
 
-    // check if notification already exist in last 24 hrs
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const existingNotification = await Notification.findOne({
-      recipient: userId,
-      type: "profile_view",
-      relatedUser: viewerId,
-      createdAt: { $gte: oneDayAgo }
-    });
+    console.log("Profile Owner:", profileOwner.firstName, "Email:", profileOwner.email);
+    console.log("Viewer:", viewer.firstName);
 
-    if (existingNotification) {
-      return res.status(200).json({ message: "Profile view already tracked recently" });
-    }
+    // check if notification already exist in last 24 hrs
+    // const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // const existingNotification = await Notification.findOne({
+    //   recipient: userId,
+    //   type: "profile_view",
+    //   relatedUser: viewerId,
+    //   createdAt: { $gte: oneDayAgo }
+    // });
+
+    // if (existingNotification) {
+    //   return res.status(200).json({ message: "Profile view already tracked recently" });
+    // }
+
+    // No 24-hour restriction - track every profile view
+    console.log("Tracking profile view (no time restrictions)");
 
     // Create notification record
     await Notification.create({
@@ -242,43 +253,39 @@ const trackProfileView = async (req, res) => {
       content: `${viewer.firstName} ${viewer.lastName} viewed your profile`,
     });
 
+    console.log("Notification created in database");
 
-    // Check if viewer is connected to profile owner
-    const isConnected = profileOwner.connections.includes(viewerId);
-
-    // Send email for connected users (remove random chance for testing)
-    if (isConnected) {
-      try {
-        const viewerProfileUrl = process.env.CLIENT_URL + "/profile/" + viewer.userName;
-        console.log("Sending profile view email to:", profileOwner.email);
-        
-        await sendProfileViewEmail(
-          profileOwner.email,
-          profileOwner.firstName,
-          viewer.firstName,
-          viewerProfileUrl
-        );
-        
-        console.log("Profile view email sent successfully");
-      } catch (error) {
-        console.error("Error sending profile view email:", error);
-        // Don't fail the request if email fails
-      }
+    // Send email for ALL profile views (remove connection restriction)
+    try {
+      const viewerProfileUrl = process.env.CLIENT_URL + "/profile/" + viewer.userName;
+      console.log("EMAIL: Sending profile view email to:", profileOwner.email);
+      console.log("EMAIL: Viewer:", viewer.firstName, "Profile Owner:", profileOwner.firstName);
+      console.log("EMAIL: CLIENT_URL:", process.env.CLIENT_URL);
+      console.log("EMAIL: Viewer profile URL:", viewerProfileUrl);
+    
+      await sendProfileViewEmail(
+        profileOwner.email,
+        profileOwner.firstName,
+        viewer.firstName,
+        viewerProfileUrl
+      );
+    
+      console.log("EMAIL: Profile view email sent successfully");
+    } catch (error) {
+      console.error("EMAIL: Error sending profile view email:", error);
     }
 
     // Emit real-time notification via socket
-    const io = req.app.get('io');
-    if (io) {
-      io.to(userId.toString()).emit('profileViewed', {
-        viewer: {
-          _id: viewer._id,
-          firstName: viewer.firstName,
-          lastName: viewer.lastName,
-          profilePicture: viewer.profilePicture,
-          userName: viewer.userName
-        }
-      });
-    }
+    emitSocketEvent(userId.toString(), 'profileViewed', {
+      viewer: {
+        _id: viewer._id,
+        firstName: viewer.firstName,
+        lastName: viewer.lastName,
+        profilePicture: viewer.profilePicture,
+        userName: viewer.userName
+      }
+    });
+    console.log("Socket event emitted for profile view");
 
     res.status(200).json({ message: "Profile view tracked successfully" });
   } catch (error) {
@@ -286,7 +293,6 @@ const trackProfileView = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 
 
 module.exports = { getSuggestedConnections, getPublicProfile, updateProfile, searchUsers, trackProfileView };

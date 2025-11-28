@@ -20,16 +20,36 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (authUser) {
-      const newSocket = io(import.meta.env.VITE_SERVER_URL);
+      console.log("CONTEXT: Creating socket for user:", authUser.firstName, "ID:", authUser._id);
+      console.log("CONTEXT: Server URL:", import.meta.env.VITE_SERVER_URL);
+    
+      const newSocket = io(import.meta.env.VITE_SERVER_URL, {
+        transports: ['websocket', 'polling'], 
+        timeout: 20000,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+      });
+    
       setSocket(newSocket);
 
-      newSocket.emit('joinUser', authUser._id);
+      newSocket.on('connect', () => {
+        console.log("CONTEXT: Socket connected, ID:", newSocket.id);
+        newSocket.emit('joinUser', authUser._id);
+        console.log("CONTEXT: Emitted joinUser for:", authUser._id);
+      });
+
+      newSocket.on('connect_error', (error) => {
+        console.error("CONTEXT: Socket connection error:", error);
+      });
 
       newSocket.on('userOnline', (userId) => {
+        console.log("CONTEXT: User came online:", userId);
         setOnlineUsers(prev => new Set(prev).add(userId));
       });
 
       newSocket.on('userOffline', (userId) => {
+        console.log("CONTEXT: User went offline:", userId);
         setOnlineUsers(prev => {
           const newSet = new Set(prev);
           newSet.delete(userId);
@@ -38,10 +58,14 @@ export const SocketProvider = ({ children }) => {
       });
 
       return () => {
+        console.log("CONTEXT: Closing socket");
         newSocket.close();
       };
+    } else {
+      console.log("CONTEXT: No auth user, not creating socket");
     }
   }, [authUser]);
+
 
   const joinUser = (userId) => {
     if (socket) {

@@ -18,6 +18,7 @@ import { MessagesPage } from "./pages/MessagesPage";
 import { SearchPage } from "./pages/SearchPage";
 import { SocketProvider } from "./contexts/SocketContext";
 
+
 // CREATE A SEPARATE COMPONENT FOR SOCKET LOGIC
 function AppContent() {
   const { data: authUser, isLoading } = useQuery({
@@ -40,21 +41,57 @@ function AppContent() {
 
   // profile view notification listener
   useEffect(() => {
+    console.log(
+      "SOCKET DEBUG: Effect running - socket:",
+      !!socket,
+      "authUser:",
+      !!authUser
+    );
+
     if (socket && authUser) {
-      socket.on('profileViewed', (data) => {
-        // Show toast notification
-        toast(`${data.viewer.firstName} ${data.viewer.lastName} viewed your profile!`);
-        
-        // Invalidate notifications query to update notifications list
-        queryClient.invalidateQueries(['notifications']);
+      console.log(
+        "SOCKET: Setting up profile view listener for:",
+        authUser.firstName,
+        "ID:",
+        authUser._id
+      );
+
+      socket.on("profileViewed", (data) => {
+        console.log("SOCKET: Received profile view notification:", data);
+        console.log("NOTIFICATION: Toast skipped (removed)");
+        console.log("QUERIES: Notifications invalidated");
+      });
+
+      // Add socket connection debugging
+      socket.on("connect", () => {
+        console.log("SOCKET: Connected to server, socket ID:", socket.id);
+      });
+
+      socket.on("disconnect", () => {
+        console.log("SOCKET: Disconnected from server");
+      });
+
+      socket.on("connect_error", (error) => {
+        console.error("SOCKET: Connection error:", error);
       });
 
       return () => {
-        socket.off('profileViewed');
+        console.log("SOCKET: Cleaning up all listeners");
+        socket.off("profileViewed");
+        socket.off("connect");
+        socket.off("disconnect");
+        socket.off("connect_error");
       };
+    } else {
+      console.log(
+        "SOCKET: Not setting up listener - socket:",
+        !!socket,
+        "authUser:",
+        !!authUser
+      );
     }
   }, [socket, authUser, queryClient]);
- 
+
   if (isLoading) {
     return null;
   }
@@ -62,6 +99,7 @@ function AppContent() {
   return (
     <div className="App w-full h-screen bg-white">
       {authUser ? <Navbar2 /> : <Navbar />}
+
       <Routes>
         <Route
           path="/"
@@ -80,9 +118,7 @@ function AppContent() {
 
         <Route
           path="/notifications"
-          element={
-            authUser ? <NotificationsPage /> : <Navigate to={"/login"} />
-          }
+          element={authUser ? <NotificationsPage /> : <Navigate to={"/login"} />}
         />
 
         <Route
@@ -102,19 +138,20 @@ function AppContent() {
 
         <Route
           path="/profile/:userName"
-          element={authUser ? <Profilepage/> : <Navigate to={"/login"} />}
+          element={authUser ? <Profilepage /> : <Navigate to={"/login"} />}
         />
 
         <Route
           path="/search"
-          element={authUser ? <SearchPage/> : <Navigate to={"/login"} />}
+          element={authUser ? <SearchPage /> : <Navigate to={"/login"} />}
         />
-        
       </Routes>
+
       <Toaster />
     </div>
   );
 }
+
 
 // MAIN APP COMPONENT
 function App() {
