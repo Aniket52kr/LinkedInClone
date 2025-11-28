@@ -3,6 +3,8 @@ const User = require("../models/user");
 const { emitSocketEvent } = require("../lib/socket");
 const multer = require("multer");
 const cloudinary = require("../lib/cloudinary");
+const { sendMessageNotificationEmail } = require("../emails/emailHandlers");
+
  
 
 // Configure multer for file uploads
@@ -147,6 +149,26 @@ exports.sendMessage = async (req, res) => {
     await message.populate('sender', 'firstName lastName profilePicture');
     await message.populate('recipient', 'firstName lastName profilePicture');
 
+    // Get recipient details for email
+    const recipient = await User.findById(recipientId, "firstName email userName");
+
+    // Send email notification for new message (only for text messages)
+    if (messageType === 'text' && content && recipient) {
+      try {
+        const profileUrl = process.env.CLIENT_URL + "/messages";
+        await sendMessageNotificationEmail(
+          recipient.email,
+          recipient.firstName,
+          message.sender.firstName,
+          content,
+          profileUrl
+        );
+      } catch (error) {
+        console.error("Error sending message notification email:", error);
+      }
+    }
+
+    
     // Emit socket event for real-time delivery
     const io = req.app.get('io');
     if (io) {

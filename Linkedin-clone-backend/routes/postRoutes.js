@@ -50,4 +50,5 @@ router.post("/:id/like", isLoggedIn, likePost);
 router.get("/user/:userName", isLoggedIn, getUserPosts);
 router.put("/edit/:postId", isLoggedIn, upload.array('files', 10), editPost);  
 
+
 module.exports = router;

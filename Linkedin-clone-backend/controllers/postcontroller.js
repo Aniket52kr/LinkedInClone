@@ -1,4 +1,4 @@
-const { sendCommentNotificationEmail } = require("../emails/emailHandlers");
+const { sendCommentNotificationEmail, sendLikeNotificationEmail } = require("../emails/emailHandlers");
 const { cloudinary } = require("../lib/cloudinary");
 const Post = require("../models/posts");
 const Notification = require("../models/notifications");
@@ -185,34 +185,43 @@ const createComment = async (req, res) => {
 // like post route:-
 const likePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    const post = await Post.findById(id).populate("author", "firstName email userName");
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
     }
 
-    if (post.likes.includes(req.user._id)) {
-      post.likes = post.likes.filter((id) => id.toString() !== req.user._id.toString());
-    } else {
-      post.likes.push(req.user._id);
+    // Check if already liked
+    if (post.likes.includes(userId)) {
+      return res.status(400).json({ message: "Post already liked" });
+    }
 
-      // Create a notification if the post owner is not the liker
-      if (post.author.toString() !== req.user._id.toString()) {
-        const newNotification = new Notification({
-          recipient: post.author,
-          type: "like",
-          relatedUser: req.user._id,
-          relatedPost: req.params.id,
-        });
+    // Add like
+    post.likes.push(userId);
+    await post.save();
 
-        await newNotification.save();
+    // Send email notification to post author (if not liking own post)
+    if (post.author._id.toString() !== userId.toString()) {
+      try {
+        const postUrl = `${process.env.CLIENT_URL}/post/${id}`;
+        await sendLikeNotificationEmail(
+          post.author.email,
+          post.author.firstName,
+          req.user.firstName,
+          postUrl,
+          post.content
+        );
+      } catch (error) {
+        console.error("Error sending like notification email:", error);
       }
     }
 
-    await post.save();
-    res.status(200).json({ post });
+    res.status(200).json({ message: "Post liked successfully" });
   } catch (error) {
-    console.error("Error liking or unliking post:", error);
-    res.status(500).json({ message: "Server Error", error: error.message });
+    console.error("Error liking post:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 

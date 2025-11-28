@@ -127,11 +127,20 @@ export const Navbar2 = () => {
 
             <div className="relative group">
               <button className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded">
-                <img
-                  src={authUser?.profilePicture || "/default-avatar.png"}
-                  alt={authUser?.firstName}
-                  className="w-8 h-8 rounded-full"
-                />
+                {authUser?.profilePicture ? (
+                  <img
+                    src={authUser.profilePicture}
+                    alt={authUser?.firstName}
+                    className="w-8 h-8 rounded-full object-cover"
+                    onError={(e) => {
+                      e.target.src = "/default-avatar.png";
+                    }}
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                    <User size={16} className="text-gray-600" />
+                  </div>
+                )}
                 <span className="hidden md:block text-sm">Me</span>
               </button>
               

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { axiosInstance } from "../lib/axios";
 import { useSocket } from "../contexts/SocketContext";
-import { Search, Send, MessageCircle, ArrowLeft, UserPlus, X, Paperclip, Smile, Trash2, Circle } from "lucide-react";
+import { Search, Send, MessageCircle, ArrowLeft, UserPlus, X, Paperclip, Smile, Trash2, Circle, User } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import EmojiPicker from 'emoji-picker-react';
 
@@ -356,11 +356,17 @@ export const MessagesPage = () => {
                         className="flex items-center p-2 hover:bg-gray-100 rounded cursor-pointer"
                         onClick={() => startConversation(user)}
                       >
-                        <img
-                          src={user.profilePicture || "/default-avatar.png"}
-                          alt={user.firstName}
-                          className="w-8 h-8 rounded-full mr-2"
-                        />
+                        {user.profilePicture ? (
+                          <img
+                            src={user.profilePicture}
+                            alt={user.firstName}
+                            className="w-8 h-8 rounded-full mr-2 object-cover"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full mr-2 bg-gray-200 flex items-center justify-center">
+                            <User size={16} className="text-gray-500" />
+                          </div>
+                        )}
                         <div className="flex-1">
                           <p className="text-sm font-medium text-gray-900">
                             {user.firstName} {user.lastName}
@@ -408,11 +414,17 @@ export const MessagesPage = () => {
                 onClick={() => setSelectedConversation(conversation)}
               >
                 <div className="relative">
-                  <img
-                    src={conversation.user.profilePicture || "/default-avatar.png"}
-                    alt={conversation.user.firstName}
-                    className="w-12 h-12 rounded-full mr-3 flex-shrink-0"
-                  />
+                  {conversation.user.profilePicture ? (
+                    <img
+                      src={conversation.user.profilePicture}
+                      alt={conversation.user.firstName}
+                      className="w-12 h-12 rounded-full mr-3 flex-shrink-0 object-cover"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full mr-3 flex-shrink-0 bg-gray-200 flex items-center justify-center">
+                      <User size={24} className="text-gray-500" />
+                    </div>
+                  )}
                   {/* Online status indicator */}
                   <div className={`absolute bottom-0 right-3 w-3 h-3 rounded-full border-2 border-white ${
                     isUserOnline(conversation.user._id) ? 'bg-green-500' : 'bg-gray-400'
@@ -457,11 +469,17 @@ export const MessagesPage = () => {
                 </button>
               )}
               <div className="relative">
-                <img
-                  src={selectedConversation.user.profilePicture || "/default-avatar.png"}
-                  alt={selectedConversation.user.firstName}
-                  className="w-10 h-10 rounded-full mr-3"
-                />
+                {selectedConversation.user.profilePicture ? (
+                  <img
+                    src={selectedConversation.user.profilePicture}
+                    alt={selectedConversation.user.firstName}
+                    className="w-10 h-10 rounded-full mr-3 object-cover"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full mr-3 bg-gray-200 flex items-center justify-center">
+                    <User size={20} className="text-gray-500" />
+                  </div>
+                )}
                 {/* Online status indicator */}
                 <div className={`absolute bottom-0 right-2 w-2.5 h-2.5 rounded-full border-2 border-white ${
                   isUserOnline(selectedConversation.user._id) ? 'bg-green-500' : 'bg-gray-400'

@@ -1,7 +1,7 @@
 const ConnectionRequest = require("../models/connectionRequest");
 const User = require("../models/user");
 const Notification = require("../models/notifications");
-const { sendConnectionAcceptedEmail } = require("../emails/emailHandlers");
+const { sendConnectionAcceptedEmail, sendConnectionRequestEmail } = require("../emails/emailHandlers");
 
 
 // send connection request route:-
@@ -29,19 +29,35 @@ const sendConnectionRequest = async (req, res) => {
       return res.status(400).json({ message: "Request already sent" });
     }
 
+    // Get recipient details for email
+    const recipient = await User.findById(userId, "firstName email userName");
+
     const newRequest = new ConnectionRequest({
       sender: senderId,
       recipient: userId,
     });
 
     await newRequest.save();
+
+    // send email notification to recipient
+    try {
+      const profileUrl = process.env.CLIENT_URL + "/profile/" + req.user.userName;
+      await sendConnectionRequestEmail(
+        recipient.email,
+        recipient.firstName,
+        req.user.firstName,
+        profileUrl
+      );
+    } catch (error) {
+      console.error("Error sending connection request email:", error);
+    }
+
     res.status(201).json({ message: "Connection request sent successfully" });
   } catch (error) {
     console.error("Error sending connection request:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 
 // accept connection request route:-

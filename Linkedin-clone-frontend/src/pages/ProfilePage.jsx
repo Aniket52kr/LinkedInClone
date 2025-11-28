@@ -2,6 +2,7 @@ import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { axiosInstance } from "../lib/axios";
 import toast from "react-hot-toast";
+import { useEffect } from "react";
 import { ProfileHeader } from "../components/ProfileHeader";
 import { AboutSection } from "../components/AboutSection";
 import { ExperienceSection } from "../components/ExperienceSection";
@@ -25,6 +26,24 @@ export const Profilepage = () => {
     },
     enabled: !!userName, 
   });
+
+
+  // ADD PROFILE VIEW TRACKING
+  const { mutate: trackProfileView } = useMutation({
+    mutationFn: async (userId) => {
+      await axiosInstance.post(`/users/track-profile-view/${userId}`);
+    },
+    onError: (error) => {
+      console.log("Profile view tracking error:", error);
+    }
+  });
+
+  // ADD EFFECT TO TRACK PROFILE VIEW
+  useEffect(() => {
+    if (authUser && userProfile && authUser._id !== userProfile._id) {
+      trackProfileView(userProfile._id);
+    }
+  }, [authUser, userProfile, trackProfileView]);
 
   const { mutate: updateProfile } = useMutation({
     mutationFn: async (updatedData) => {

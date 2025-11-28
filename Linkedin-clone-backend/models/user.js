@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 
+
 const experienceSchema = new mongoose.Schema(
   {
     _id: { 
@@ -40,6 +41,7 @@ const experienceSchema = new mongoose.Schema(
 );
 
 
+
 const educationSchema = new mongoose.Schema(
   {
     _id: { 
@@ -67,6 +69,7 @@ const educationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
 
 
 const UserSchema = new mongoose.Schema(
@@ -146,6 +149,38 @@ const UserSchema = new mongoose.Schema(
     lastSeen: { 
       type: Date, 
       default: Date.now 
+    },
+
+    // Email preferences for automated notifications
+    emailPreferences: {
+      connectionRequests: {
+        type: Boolean,
+        default: true,
+      },
+      connectionAccepted: {
+        type: Boolean,
+        default: true,
+      },
+      messageNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      postLikes: {
+        type: Boolean,
+        default: true,
+      },
+      postComments: {
+        type: Boolean,
+        default: true,
+      },
+      profileViews: {
+        type: Boolean,
+        default: false, // Default to false for privacy
+      },
+      weeklyDigest: {
+        type: Boolean,
+        default: true,
+      },
     },
   },
   { timestamps: true }

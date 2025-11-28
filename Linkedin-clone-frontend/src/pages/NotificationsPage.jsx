@@ -7,13 +7,13 @@ import {
   ThumbsUp,
   Trash2,
   UserPlus,
+  User, // ADD THIS IMPORT
 } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import avatarImg from "../assets/images/avatar.png";
 import { formatDistanceToNow } from "date-fns";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
-
 
 export const NotificationsPage = () => {
   const { data: authUser } = useQuery({ queryKey: ["authUser"] });
@@ -51,6 +51,8 @@ export const NotificationsPage = () => {
         return <MessageSquare className="text-green-500" />;
       case "connectionAccepted":
         return <UserPlus className="text-purple-500" />;
+      case "profile_view":
+        return <Eye className="text-orange-500" />; // ADD PROFILE_VIEW ICON
       default:
         return null;
     }
@@ -87,6 +89,18 @@ export const NotificationsPage = () => {
               {notification.relatedUser.firstName}
             </Link>{" "}
             accepted your connection request
+          </span>
+        );
+      case "profile_view":
+        return (
+          <span>
+            <Link
+              to={`/profile/${notification.relatedUser.userName}`}
+              className="font-bold"
+            >
+              {notification.relatedUser.firstName} {notification.relatedUser.lastName}
+            </Link>{" "}
+            viewed your profile
           </span>
         );
       default:
@@ -144,14 +158,17 @@ export const NotificationsPage = () => {
                       <Link
                         to={`/profile/${notification.relatedUser.userName}`}
                       >
-                        <img
-                          src={
-                            notification.relatedUser.profilePicture ||
-                            avatarImg
-                          }
-                          alt={notification.relatedUser.firstName}
-                          className="w-12 h-12 rounded-full object-cover"
-                        />
+                        {notification.relatedUser.profilePicture ? (
+                          <img
+                            src={notification.relatedUser.profilePicture}
+                            alt={notification.relatedUser.firstName}
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
+                            <User size={20} className="text-gray-500" />
+                          </div>
+                        )}
                       </Link>
 
                       <div>
