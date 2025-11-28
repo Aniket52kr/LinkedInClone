@@ -15,6 +15,7 @@ import { NetworkPage } from "./pages/NetworkPage";
 import { PostPage } from "./pages/PostPage";
 import { Profilepage } from "./pages/ProfilePage";
 import { MessagesPage } from "./pages/MessagesPage";
+import { SearchPage } from "./pages/SearchPage";
 import { SocketProvider } from "./contexts/SocketContext";
 
 // CREATE A SEPARATE COMPONENT FOR SOCKET LOGIC
@@ -66,36 +67,49 @@ function AppContent() {
           path="/"
           element={authUser ? <HomePage /> : <Navigate to={"/signup"} />}
         />
+
         <Route
           path="/signup"
           element={!authUser ? <SignUpPage /> : <Navigate to={"/"} />}
         />
+
         <Route
           path="/login"
           element={!authUser ? <LoginPage /> : <Navigate to={"/"} />}
         />
+
         <Route
           path="/notifications"
           element={
             authUser ? <NotificationsPage /> : <Navigate to={"/login"} />
           }
         />
+
         <Route
           path="/network"
           element={authUser ? <NetworkPage /> : <Navigate to={"/login"} />}
         />
+
         <Route
           path="/messages"
           element={authUser ? <MessagesPage /> : <Navigate to={"/login"} />}
         />
+
         <Route
           path="/post/:postId"
           element={authUser ? <PostPage /> : <Navigate to={"/login"} />}
         />
+
         <Route
           path="/profile/:userName"
           element={authUser ? <Profilepage/> : <Navigate to={"/login"} />}
         />
+
+        <Route
+          path="/search"
+          element={authUser ? <SearchPage/> : <Navigate to={"/login"} />}
+        />
+        
       </Routes>
       <Toaster />
     </div>

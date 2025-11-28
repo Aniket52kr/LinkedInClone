@@ -10,6 +10,14 @@ import bannerImg from "../assets/images/banner.png";
 
 
 export const ProfileHeader = ({ userData, onSave, isOwnProfile }) => {
+  if (!userData) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState({});
   const navigate = useNavigate();
@@ -21,11 +29,11 @@ export const ProfileHeader = ({ userData, onSave, isOwnProfile }) => {
     {
       queryKey: ["connectionStatus", userData._id],
       queryFn: () => axiosInstance.get(`/connections/status/${userData._id}`),
-      enabled: !isOwnProfile,
+      enabled: !isOwnProfile && !!userData?._id, // Add safety check
     }
   );
 
-  const isConnected = userData.connections.some(
+  const isConnected = authUser && userData?.connections?.some(
     (connection) => connection === authUser._id
   );
 
@@ -87,7 +95,7 @@ export const ProfileHeader = ({ userData, onSave, isOwnProfile }) => {
     
     // Store the user data to start conversation immediately
     const newConversation = {
-      user: userData,
+      user: userData, // Safe now because of the check above
       lastMessage: {
         content: "Start a conversation",
         createdAt: new Date(),

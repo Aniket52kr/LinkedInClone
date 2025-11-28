@@ -16,6 +16,8 @@ const postRoutes = require("./routes/postRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const connectionRoutes = require("./routes/connectionRoutes");
 const messageRoutes = require("./routes/messageRoutes");
+const searchRoutes = require("./routes/searchRoutes");
+
 
 require("dotenv").config();
 
@@ -75,6 +77,7 @@ app.use("/posts", postRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/connections", connectionRoutes);
 app.use("/messages", messageRoutes);
+app.use("/search", searchRoutes);
 
 // Error Handling
 app.use((err, req, res, next) => {

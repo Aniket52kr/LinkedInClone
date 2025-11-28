@@ -4,6 +4,16 @@ import { useState } from "react";
 import { formatDate } from "../../utils/dateUtils";
 
 export const ExperienceSection = ({ userData = { experience: [] }, isOwnProfile, onSave }) => {
+  // safety check 
+  if (!userData) {
+    return (
+      <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  
   const [isEditing, setIsEditing] = useState(false);
   const [experiences, setExperiences] = useState(userData.experience);
   const [newExperience, setNewExperience] = useState({

@@ -1,6 +1,6 @@
 const { sendCommentNotificationEmail, sendLikeNotificationEmail } = require("../emails/emailHandlers");
 const { cloudinary } = require("../lib/cloudinary");
-const Post = require("../models/posts");
+const Post = require("../models/post");
 const Notification = require("../models/notifications");
 const User = require("../models/user");
 
