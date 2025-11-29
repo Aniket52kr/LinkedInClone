@@ -2,10 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Filter, X, MapPin, Briefcase, GraduationCap, Users, FileText, Clock, TrendingUp, Search } from "lucide-react";
+import { Filter, X, MapPin, Briefcase, GraduationCap, Users, FileText, Clock, TrendingUp, Search, User, Send, MoreHorizontal } from "lucide-react";
 import { axiosInstance } from "../lib/axios";
 import { useDebounce } from "../hooks/useDebounce";
-import { User } from "lucide-react";
 
 export const SearchPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -108,6 +107,12 @@ export const SearchPage = () => {
     });
   };
 
+  const handleSearch = (searchQuery) => {
+    if (searchQuery.trim()) {
+      setQuery(searchQuery);
+      addRecentSearch(searchQuery);
+    }
+  };
 
   const renderPersonCard = (person) => (
     <div 
@@ -126,21 +131,29 @@ export const SearchPage = () => {
             <User size={20} className="text-gray-500" />
           </div>
         )}
-        
+      
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
             {person.firstName} {person.lastName}
           </h3>
           <p className="text-sm text-gray-600 truncate">{person.headline}</p>
-          {person.location && (
-            <p className="text-xs text-gray-500 flex items-center mt-1">
-              <MapPin size={12} className="mr-1 flex-shrink-0" />
-              {person.location}
-            </p>
-          )}
+          <div className="flex items-center mt-1 text-xs text-gray-500">
+            {person.location && (
+              <>
+                <MapPin size={12} className="mr-1 flex-shrink-0" />
+                <span>{person.location}</span>
+              </>
+            )}
+            {person.connections && person.connections.length > 0 && (
+              <>
+                <span className="mx-2">•</span>
+                <span>{person.connections.length}+ connections</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    
+  
       {person.skills && person.skills.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1">
           {person.skills.slice(0, 3).map((skill, index) => (
@@ -148,7 +161,7 @@ export const SearchPage = () => {
               {skill}
             </span>
           ))}
-        
+      
           {person.skills.length > 3 && (
             <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
               +{person.skills.length - 3}
@@ -158,8 +171,6 @@ export const SearchPage = () => {
       )}
     </div>
   );
-
-  
 
   const renderPostCard = (post) => (
     <div key={post._id} className="bg-white border rounded-lg hover:shadow-md transition-all duration-200">
@@ -180,11 +191,20 @@ export const SearchPage = () => {
               {new Date(post.createdAt).toLocaleDateString()}
             </p>
           </div>
+          <button className="p-1 hover:bg-gray-100 rounded-full">
+            <MoreHorizontal size={16} className="text-gray-500" />
+          </button>
         </div>
         <p className="text-gray-800 line-clamp-3">{post.content}</p>
         {post.image && (
           <img src={post.image} className="mt-2 rounded-lg w-full max-h-48 object-cover" />
         )}
+        <div className="flex items-center justify-between mt-3 pt-3 border-t">
+          <div className="flex items-center space-x-4 text-xs text-gray-500">
+            <span>{post.likes?.length || 0} likes</span>
+            <span>{post.comments?.length || 0} comments</span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -211,7 +231,7 @@ export const SearchPage = () => {
             <div
               key={`${search}-${index}`}
               className="flex items-center justify-between p-3 hover:bg-gray-50 cursor-pointer transition-colors group"
-              onClick={() => setQuery(search)}
+              onClick={() => handleSearch(search)}
             >
               <div className="flex items-center space-x-3 flex-1">
                 <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
@@ -258,7 +278,7 @@ export const SearchPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Search Filters Header */}
+      {/* Search Header */}
       <div className="bg-white border-b sticky top-0 z-40">
         <div className="max-w-4xl mx-auto p-4">
           {/* Search Type Tabs */}
@@ -391,7 +411,7 @@ export const SearchPage = () => {
                 {['React Developer', 'Product Manager', 'UX Designer', 'Data Science', 'Remote Work', 'Machine Learning'].map((trending, index) => (
                   <button
                     key={index}
-                    onClick={() => setQuery(trending)}
+                    onClick={() => handleSearch(trending)}
                     className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm hover:bg-blue-100 transition-colors"
                   >
                     {trending}

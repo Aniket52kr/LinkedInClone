@@ -228,32 +228,37 @@ const likePost = async (req, res) => {
 
 
 
-
 // get users posts
 const getUserPosts = async (req, res) => {
   try {
     const { userName } = req.params;
+    console.log("Backend: Fetching posts for userName:", userName);
 
     // find user by username
-    // const User = require("../models/user");
     const user = await User.findOne({ userName });
-
-    if(!user) {
+    
+    if (!user) {
+      console.log("Backend: User not found:", userName);
       return res.status(404).json({ message: "User not found" });
-    };
+    }
 
+    console.log("Backend: User found:", user._id);
+
+    // Use 'author' field to match Post model
     const posts = await Post.find({ author: user._id })
-      .populate("author", "firstName userName profilePicture headline", )
+      .populate("author", "firstName lastName userName profilePicture headline")
       .populate("comments.user", "firstName profilePicture")
       .sort({ createdAt: -1 });
+
+    console.log("Backend: Posts found:", posts.length);
+    console.log("Backend: First post structure:", posts[0]);
 
     res.status(200).json(posts);
   } catch (error) {
     console.error("Error fetching user posts: ", error);
-    res.status(500).json({ message: "server Error", error: error.message });
+    res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
-
 
 
 
@@ -265,10 +270,13 @@ const editPost = async (req, res) => {
     console.log("Edit post files:", req.files);
     
     const { content } = req.body;
-    const postId = req.params.postId; // Fix: should be postId not id
-    const imagesToRemove = req.body.imagesToRemove ? JSON.parse(req.body.imagesToRemove) : [];
+    const postId = req.params.postId;
+    
+    // Parse files to remove (handle both old and new formats)
+    const filesToRemove = req.body.filesToRemove ? JSON.parse(req.body.filesToRemove) : 
+                         req.body.imagesToRemove ? JSON.parse(req.body.imagesToRemove) : [];
 
-    console.log("Parsed imagesToRemove:", imagesToRemove);
+    console.log("Parsed filesToRemove:", filesToRemove);
 
     const post = await Post.findById(postId);
     if (!post) {
@@ -285,40 +293,78 @@ const editPost = async (req, res) => {
       post.content = content;
     }
 
-    // Handle image removals
-    if (imagesToRemove && imagesToRemove.length > 0) {
-      console.log("Removing images:", imagesToRemove);
-      for (const publicId of imagesToRemove) {
+    // Handle file removals (images, videos, documents)
+    if (filesToRemove && filesToRemove.length > 0) {
+      console.log("Removing files:", filesToRemove);
+      for (const fileToRemove of filesToRemove) {
         try {
+          const { type, publicId } = fileToRemove;
+          
           // Delete from Cloudinary
-          await cloudinary.uploader.destroy(publicId);
-          console.log("Deleted from Cloudinary:", publicId);
-          // Remove from post
-          post.images = post.images.filter(img => img.publicId !== publicId);
+          if (publicId) {
+            await cloudinary.uploader.destroy(publicId);
+            console.log("Deleted from Cloudinary:", publicId);
+          }
+          
+          // Remove from post based on type
+          if (type === 'image') {
+            post.images = post.images.filter(img => img.publicId !== publicId);
+          } else if (type === 'video') {
+            post.videoUrl = null;
+            post.videoPublicId = null;
+          } else if (type === 'document') {
+            post.documentUrl = null;
+            post.documentPublicId = null;
+          }
+          
         } catch (error) {
-          console.error("Failed to delete image from Cloudinary:", publicId, error);
+          console.error("Failed to delete file:", fileToRemove, error);
         }
       }
     }
 
-    // Handle new image additions
+    // Handle new file additions
     if (req.files && req.files.length > 0) {
       console.log("Processing new files:", req.files.length);
+      
       for (const file of req.files) {
-        if (file.mimetype.startsWith("image/")) {
-          try {
+        try {
+          if (file.mimetype.startsWith("image/")) {
+            // Handle images
             const fileResult = await cloudinary.uploader.upload(file.path, {
-              folder: "linkedin/posts", // Use consistent folder name
+              folder: "linkedin/posts",
+              resource_type: "image"
             });
             post.images.push({
               url: fileResult.secure_url,
               publicId: fileResult.public_id,
             });
             console.log("Uploaded new image:", fileResult.public_id);
-          } catch (error) {
-            console.error("Failed to upload image:", error);
+            
+          } else if (file.mimetype.startsWith("video/")) {
+            // Handle videos
+            const fileResult = await cloudinary.uploader.upload(file.path, {
+              folder: "linkedin/posts",
+              resource_type: "video"
+            });
+            post.videoUrl = fileResult.secure_url;
+            post.videoPublicId = fileResult.public_id;
+            console.log("Uploaded new video:", fileResult.public_id);
+            
+          } else if (file.mimetype.includes("document") || file.mimetype === "application/pdf") {
+            // Handle documents
+            const fileResult = await cloudinary.uploader.upload(file.path, {
+              folder: "linkedin/posts",
+              resource_type: "auto"
+            });
+            post.documentUrl = fileResult.secure_url;
+            post.documentPublicId = fileResult.public_id;
+            console.log("Uploaded new document:", fileResult.public_id);
           }
+        } catch (error) {
+          console.error("Failed to upload file:", file.originalname, error);
         }
+        
         // Clean up temporary file
         try {
           const fs = require("fs");
@@ -338,7 +384,12 @@ const editPost = async (req, res) => {
     // Populate author details
     await post.populate("author", "firstName userName profilePicture headline");
 
-    console.log("Final post after edit:", post.images.length, "images");
+    console.log("Final post after edit:", {
+      images: post.images.length,
+      video: !!post.videoUrl,
+      document: !!post.documentUrl
+    });
+    
     res.status(200).json(post);
   } catch (error) {
     console.error("Error editing post:", error);

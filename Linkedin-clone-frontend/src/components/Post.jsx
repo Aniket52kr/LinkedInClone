@@ -29,6 +29,9 @@ export const Post = ({ post }) => {
   const [newFiles, setNewFiles] = useState([]);
   const [imagesToRemove, setImagesToRemove] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showShareDialog, setShowShareDialog] = useState(null);
+  const [shareUrl, setShareUrl] = useState('');
+  
   const currentEditImage = useMemo(() => {
     return editImages[currentImageIndex] || null;
   }, [editImages, currentImageIndex]);
@@ -39,12 +42,22 @@ export const Post = ({ post }) => {
       setCurrentImageIndex(0);
     }
   }, [currentImageIndex, editImages.length]);
+
+  // Handle click outside to close share dialog
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showShareDialog && !event.target.closest('.share-dialog')) {
+        setShowShareDialog(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showShareDialog]);
+
   const isOwner = authUser?._id === post?.author?._id;
   const isLiked = post?.likes?.includes(authUser?._id);
-
   const queryClient = useQueryClient();
-
-  
 
   // delete post mutation
   const { mutate: deletePost, isPending: isDeletingPost } = useMutation({
@@ -111,6 +124,45 @@ export const Post = ({ post }) => {
       queryClient.invalidateQueries({ queryKey: ["post", postId] });
     },
   });
+
+  // Handle share button click
+  const handleShareClick = () => {
+    const postUrl = `${window.location.origin}/posts/${post._id}`;
+    setShareUrl(postUrl);
+    setShowShareDialog(post._id);
+  };
+
+  // Copy to clipboard
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(shareUrl);
+    toast.success('Link copied to clipboard!');
+    setShowShareDialog(null);
+  };
+
+  // Share on different platforms
+  const shareOnLinkedIn = () => {
+    const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
+    window.open(linkedinUrl, '_blank');
+    setShowShareDialog(null);
+  };
+
+  const shareOnTwitter = () => {
+    const twitterUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=Check out this post!`;
+    window.open(twitterUrl, '_blank');
+    setShowShareDialog(null);
+  };
+
+  const shareOnFacebook = () => {
+    const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+    window.open(facebookUrl, '_blank');
+    setShowShareDialog(null);
+  };
+
+  // Close share dialog
+  const closeShareDialog = () => {
+    setShowShareDialog(null);
+    setShareUrl('');
+  };
 
   const handleDeletePost = () => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
@@ -188,8 +240,8 @@ export const Post = ({ post }) => {
     const files = Array.from(e.target.files);
     const validFiles = files.filter(file => {
       const isValidType = file.type.startsWith("image/") || 
-                         file.type.startsWith("video/") || 
-                         file.type === "application/pdf";
+                       file.type.startsWith("video/") || 
+                       file.type === "application/pdf";
       const isValidSize = file.size <= 50 * 1024 * 1024; // 50MB
       return isValidType && isValidSize;
     });
@@ -331,7 +383,7 @@ export const Post = ({ post }) => {
                       </button>
                     </>
                   )}
-      
+  
                   {/* Remove button with proper publicId */}
                   {editImages[currentImageIndex] && (
                     <button
@@ -507,7 +559,11 @@ export const Post = ({ post }) => {
             text={`Comment (${comments.length})`}
             onClick={() => setShowComments(!showComments)}
           />
-          <PostAction icon={<Share2 size={18} />} text="Share" />
+          <PostAction 
+            icon={<Share2 size={18} />} 
+            text="Share" 
+            onClick={handleShareClick}
+          />
         </div>
       </div>
 
@@ -560,6 +616,98 @@ export const Post = ({ post }) => {
               )}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Share Dialog */}
+      {showShareDialog === post._id && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Share this post</h3>
+              <button 
+                onClick={closeShareDialog}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* Share Options */}
+            <div className="space-y-3">
+              {/* Copy Link */}
+              <div className="p-3 border border-gray-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                      🔗
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">Copy link</span>
+                  </div>
+                  <button 
+                    onClick={copyToClipboard}
+                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+              
+              {/* LinkedIn */}
+              <button 
+                onClick={shareOnLinkedIn}
+                className="w-full p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-3"
+              >
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">in</span>
+                </div>
+                <span className="text-sm font-medium text-gray-900">Share on LinkedIn</span>
+              </button>
+              
+              {/* Twitter */}
+              <button 
+                onClick={shareOnTwitter}
+                className="w-full p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-3"
+              >
+                <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">𝕏</span>
+                </div>
+                <span className="text-sm font-medium text-gray-900">Share on Twitter</span>
+              </button>
+              
+              {/* Facebook */}
+              <button 
+                onClick={shareOnFacebook}
+                className="w-full p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-3"
+              >
+                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">f</span>
+                </div>
+                <span className="text-sm font-medium text-gray-900">Share on Facebook</span>
+              </button>
+              
+              {/* WhatsApp */}
+              <button 
+                onClick={() => {
+                  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Check out this post: ${shareUrl}`)}`;
+                  window.open(whatsappUrl, '_blank');
+                  setShowShareDialog(null);
+                }}
+                className="w-full p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-3"
+              >
+                <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">📱</span>
+                </div>
+                <span className="text-sm font-medium text-gray-900">Share on WhatsApp</span>
+              </button>
+            </div>
+            
+            {/* Preview URL
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500 mb-1">Post URL:</p>
+              <p className="text-xs text-gray-700 truncate">{shareUrl}</p>
+            </div> */}
+          </div>
         </div>
       )}
     </div>

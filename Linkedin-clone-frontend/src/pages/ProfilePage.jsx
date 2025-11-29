@@ -104,13 +104,28 @@ export const Profilepage = () => {
   console.log("User Data:", userData);
 
   return (
-  <div className="bg-[#F4F2EE] py-5 px-80 min-h-screen w-full mx-auto p-4">
-    {userData && <ProfileHeader userData={userData} isOwnProfile={isOwnProfile} onSave={handleSave} />}
-    {userData && <AboutSection userData={userData} isOwnProfile={isOwnProfile} onSave={handleSave} />}
-    {userData && <ExperienceSection userData={userData} isOwnProfile={isOwnProfile} onSave={handleSave} />}
-    {userData && <EducationSection userData={userData} isOwnProfile={isOwnProfile} onSave={handleSave} />}
-    {userData && <SkillsSection userData={userData} isOwnProfile={isOwnProfile} onSave={handleSave} />}
-    <UserPosts userName={userName} />
-  </div>
-);
+    <div className="bg-[#F4F2EE] py-5 px-80 min-h-screen w-full mx-auto p-4">
+      {userData && <ProfileHeader userData={userData} isOwnProfile={isOwnProfile} onSave={handleSave} />}
+    
+      <div className="mt-6">
+        {userData && <AboutSection userData={userData} isOwnProfile={isOwnProfile} onSave={handleSave} />}
+      </div>
+    
+      <div className="mt-6">
+        {userData && <ExperienceSection userData={userData} isOwnProfile={isOwnProfile} onSave={handleSave} />}
+      </div>
+    
+      <div className="mt-6">
+        {userData && <EducationSection userData={userData} isOwnProfile={isOwnProfile} onSave={handleSave} />}
+      </div>
+    
+      <div className="mt-6">
+        {userData && <SkillsSection userData={userData} isOwnProfile={isOwnProfile} onSave={handleSave} />}
+      </div>
+    
+      <div className="mt-6">
+        {userData && <UserPosts userName={userName} isOwnProfile={authUser?.userName === userName} />}
+      </div>
+    </div>
+  );
 };
