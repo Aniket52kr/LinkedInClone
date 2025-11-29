@@ -229,8 +229,8 @@ const trackProfileView = async (req, res) => {
     console.log("Profile Owner:", profileOwner.firstName, "Email:", profileOwner.email);
     console.log("Viewer:", viewer.firstName);
 
-    // check if notification already exist in last 24 hrs
-    // const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // check if notification already exist in last 1 hrs
+    // const oneDayAgo = new Date(Date.now() - 1 * 60 * 60 * 1000);
     // const existingNotification = await Notification.findOne({
     //   recipient: userId,
     //   type: "profile_view",

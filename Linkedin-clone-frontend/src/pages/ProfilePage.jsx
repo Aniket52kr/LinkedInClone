@@ -49,20 +49,20 @@ export const Profilepage = () => {
   // ADD EFFECT TO TRACK PROFILE VIEW
   useEffect(() => {
     if (authUser && userProfile && authUser._id !== userProfile._id) {
-      console.log("👀 PROFILE VIEW DETECTED:", {
+      console.log("PROFILE VIEW DETECTED:", {
         viewer: `${authUser.firstName} ${authUser.lastName} (ID: ${authUser._id})`,
         profile: `${userProfile.firstName} ${userProfile.lastName} (ID: ${userProfile._id})`,
         isOwnProfile: false
       });
       trackProfileView(userProfile._id);
     } else {
-      console.log("🚫 SKIPPING PROFILE VIEW:", {
+      console.log("SKIPPING PROFILE VIEW:", {
         hasAuthUser: !!authUser,
         hasUserProfile: !!userProfile,
         isOwnProfile: authUser?._id === userProfile?._id
       });
     }
-  }, [authUser, userProfile, trackProfileView]);
+  }, [authUser, userProfile]);
 
   
   const { mutate: updateProfile } = useMutation({
