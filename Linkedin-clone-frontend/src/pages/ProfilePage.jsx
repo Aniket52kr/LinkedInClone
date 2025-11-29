@@ -2,7 +2,7 @@ import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { axiosInstance } from "../lib/axios";
 import toast from "react-hot-toast";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ProfileHeader } from "../components/ProfileHeader";
 import { AboutSection } from "../components/AboutSection";
 import { ExperienceSection } from "../components/ExperienceSection";
@@ -17,6 +17,8 @@ export const Profilepage = () => {
   
   const { userName } = useParams();
   const queryClient = useQueryClient();
+
+  const profileViewLogged = useRef(false);
 
   const { data: authUser } = useQuery({ queryKey: ["authUser"] });
 
@@ -46,20 +48,36 @@ export const Profilepage = () => {
     }
   });
 
+
+  // reset ref when profile changes
+  useEffect( () => {
+    if(userProfile) {
+      profileViewLogged.current = false;
+    }
+  }, [userProfile?._id]);
+
   // ADD EFFECT TO TRACK PROFILE VIEW
   useEffect(() => {
-    if (authUser && userProfile && authUser._id !== userProfile._id) {
+    if (authUser && userProfile && authUser._id !== userProfile._id && !profileViewLogged.current) {
       console.log("PROFILE VIEW DETECTED:", {
         viewer: `${authUser.firstName} ${authUser.lastName} (ID: ${authUser._id})`,
         profile: `${userProfile.firstName} ${userProfile.lastName} (ID: ${userProfile._id})`,
         isOwnProfile: false
       });
-      trackProfileView(userProfile._id);
+    
+      // Mark as logged to prevent duplicate calls
+      profileViewLogged.current = true;
+    
+      // Add small delay to ensure ref is set
+      setTimeout(() => {
+        trackProfileView(userProfile._id);
+      }, 100); // Reduced from 1000ms to 100ms
     } else {
       console.log("SKIPPING PROFILE VIEW:", {
         hasAuthUser: !!authUser,
         hasUserProfile: !!userProfile,
-        isOwnProfile: authUser?._id === userProfile?._id
+        isOwnProfile: authUser?._id === userProfile?._id,
+        alreadyLogged: profileViewLogged.current
       });
     }
   }, [authUser, userProfile]);

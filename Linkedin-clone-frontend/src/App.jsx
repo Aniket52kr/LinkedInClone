@@ -56,11 +56,14 @@ function AppContent() {
         authUser._id
       );
 
-      socket.on("profileViewed", (data) => {
+      const handleProfileView = (data) => {
         console.log("SOCKET: Received profile view notification:", data);
         console.log("NOTIFICATION: Toast skipped (removed)");
-        console.log("QUERIES: Notifications invalidated");
-      });
+        // Invalidate notifications query to update UI
+        queryClient.invalidateQueries(["notifications"]);
+      };
+
+      socket.on("profileViewed", handleProfileView);
 
       // Add socket connection debugging
       socket.on("connect", () => {
@@ -77,7 +80,7 @@ function AppContent() {
 
       return () => {
         console.log("SOCKET: Cleaning up all listeners");
-        socket.off("profileViewed");
+        socket.off("profileViewed", handleProfileView);
         socket.off("connect");
         socket.off("disconnect");
         socket.off("connect_error");
@@ -90,7 +93,7 @@ function AppContent() {
         !!authUser
       );
     }
-  }, [socket, authUser, queryClient]);
+  }, [socket, authUser]);
 
   if (isLoading) {
     return null;
@@ -151,7 +154,6 @@ function AppContent() {
     </div>
   );
 }
-
 
 // MAIN APP COMPONENT
 function App() {
