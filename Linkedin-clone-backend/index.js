@@ -24,7 +24,7 @@ require("dotenv").config();
 // CORS Middleware
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: [process.env.CLIENT_URL, process.env.SOCKET_ORIGIN],
     credentials: true,
   })
 );
