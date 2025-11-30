@@ -23,7 +23,7 @@ export const SocketProvider = ({ children }) => {
       console.log("CONTEXT: Creating socket for user:", authUser.firstName, "ID:", authUser._id);
       console.log("CONTEXT: Server URL:", import.meta.env.VITE_SERVER_URL);
     
-      const newSocket = io(import.meta.env.VITE_SERVER_URL, {
+      const newSocket = io(import.meta.env.VITE_SOCKET_URL, {
         transports: ['websocket', 'polling'], 
         timeout: 20000,
         reconnection: true,
