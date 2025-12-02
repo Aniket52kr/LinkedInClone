@@ -17,6 +17,7 @@ import { formatDistanceToNow } from "date-fns";
 import avtarImg from "../assets/images/avatar.png";
 import { PostAction } from "./PostAction";
 
+
 export const Post = ({ post }) => {
   const { postId } = useParams();
   const { data: authUser } = useQuery({ queryKey: ["authUser"] });
@@ -31,17 +32,48 @@ export const Post = ({ post }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showShareDialog, setShowShareDialog] = useState(null);
   const [shareUrl, setShareUrl] = useState('');
-  
+
+  const mediaItems = useMemo(() => {
+    const items = [];
+
+    if (post?.images && post.images.length > 0) {
+      items.push(
+        ...post.images.map((img) => ({
+          type: "image",
+          url: img.url,
+          publicId: img.publicId,
+        }))
+      );
+    }
+
+    if (post?.videoUrl) {
+      items.push({
+        type: "video",
+        url: post.videoUrl,
+      });
+    }
+
+    if (post?.documentUrl) {
+      items.push({
+        type: "document",
+        url: post.documentUrl,
+      });
+    }
+    return items;
+  }, [post]);
+
   const currentEditImage = useMemo(() => {
     return editImages[currentImageIndex] || null;
   }, [editImages, currentImageIndex]);
 
   // Reset index if out of bounds
   useEffect(() => {
-    if (currentImageIndex >= editImages.length && editImages.length > 0) {
+    const total = isEditing ? editImages.length : mediaItems.length;
+
+    if (total > 0 && currentImageIndex >= total) {
       setCurrentImageIndex(0);
     }
-  }, [currentImageIndex, editImages.length]);
+  }, [currentImageIndex, editImages.length, mediaItems.length, isEditing]);
 
   // Handle click outside to close share dialog
   useEffect(() => {
@@ -98,9 +130,9 @@ export const Post = ({ post }) => {
 
   // create comment mutation
   const { mutate: createComment, isPending: isAddingComment } = useMutation({
-    mutationFn: async (newComment) => {
+    mutationFn: async (newCommentText) => {
       await axiosInstance.post(`/posts/${post._id}/comment`, {
-        content: newComment,
+        content: newCommentText,
       });
     },
     onSuccess: () => {
@@ -114,12 +146,53 @@ export const Post = ({ post }) => {
     },
   });
 
-  // like post mutation
+  // like post mutation - optimistic update for faster UI
   const { mutate: likePost, isPending: isLikingPost } = useMutation({
     mutationFn: async () => {
       await axiosInstance.post(`/posts/${post._id}/like`);
     },
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["posts"] });
+      await queryClient.cancelQueries({ queryKey: ["post", postId] });
+
+      const previousPosts = queryClient.getQueryData(["posts"]);
+      const previousPost = queryClient.getQueryData(["post", postId]);
+
+      const toggleLikes = (p) => {
+        if (!p) return p;
+        const alreadyLiked = p.likes?.includes(authUser?._id);
+        const newLikes = alreadyLiked
+          ? p.likes.filter((id) => id !== authUser?._id)
+          : [...(p.likes || []), authUser?._id];
+
+        return { ...p, likes: newLikes };
+      };
+
+      if (previousPosts) {
+        queryClient.setQueryData(["posts"], (old) =>
+          old.map((p) => (p._id === post._id ? toggleLikes(p) : p))
+        );
+      }
+
+      if (previousPost) {
+        queryClient.setQueryData(["post", postId], (old) => toggleLikes(old));
+      }
+
+      return { previousPosts, previousPost };
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previousPosts) {
+        queryClient.setQueryData(["posts"], context.previousPosts);
+      }
+      if (context?.previousPost) {
+        queryClient.setQueryData(["post", postId], context.previousPost);
+      }
+
+      const msg =
+        error?.response?.data?.message || "Failed to like post";
+      toast.error(msg);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["posts"] });
       queryClient.invalidateQueries({ queryKey: ["post", postId] });
     },
@@ -240,8 +313,8 @@ export const Post = ({ post }) => {
     const files = Array.from(e.target.files);
     const validFiles = files.filter(file => {
       const isValidType = file.type.startsWith("image/") || 
-                       file.type.startsWith("video/") || 
-                       file.type === "application/pdf";
+                     file.type.startsWith("video/") || 
+                     file.type === "application/pdf";
       const isValidSize = file.size <= 50 * 1024 * 1024; // 50MB
       return isValidType && isValidSize;
     });
@@ -278,11 +351,13 @@ export const Post = ({ post }) => {
   };
 
   const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % post.images.length);
+    if (mediaItems.length === 0) return;
+    setCurrentImageIndex((prev) => (prev + 1) % mediaItems.length);
   };
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + post.images.length) % post.images.length);
+    if (mediaItems.length === 0) return;
+    setCurrentImageIndex((prev) => (prev - 1 + mediaItems.length) % mediaItems.length);
   };
 
   return (
@@ -472,18 +547,68 @@ export const Post = ({ post }) => {
           </>
         )}
 
-        {/* Multiple Images Slider - Clean */}
-        {post?.images && post.images.length > 0 && (
+        {/* Unified Media Slider (images + video + document) */}
+        {mediaItems.length > 0 && (
           <div className="mt-4">
-            <div className="relative border rounded-lg overflow-hidden">
-              <img
-                src={post.images[currentImageIndex].url}
-                alt="Post content"
-                className="w-full h-90 object-cover"
-              />
-              
-              {/* Navigation arrows - Only show if multiple images */}
-              {post.images.length > 1 && (
+            <div className="relative border rounded-lg overflow-hidden bg-black/5">
+              {(() => {
+                const currentMedia = mediaItems[currentImageIndex];
+
+                if (!currentMedia) return null;
+
+                if (currentMedia.type === "image") {
+                  return (
+                    <img
+                      src={currentMedia.url}
+                      alt="Post media"
+                      className="w-full h-90 object-cover"
+                    />
+                  );
+                }
+
+                if (currentMedia.type === "video") {
+                  return (
+                    <video
+                      controls
+                      className="w-full rounded-lg max-h-96 object-cover bg-black"
+                      preload="metadata"
+                    >
+                      <source src={currentMedia.url} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+                  );
+                }
+
+                if (currentMedia.type === "document") {
+                  return (
+                    <div className="mt-0 p-4 bg-gray-50 rounded-lg border flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="bg-red-100 p-2 rounded mr-3">
+                          📄
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">PDF Document</p>
+                          <p className="text-xs text-gray-600">Click to view</p>
+                        </div>
+                      </div>
+
+                      <a
+                        href={currentMedia.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600"
+                      >
+                        View PDF
+                      </a>
+                    </div>
+                  );
+                }
+
+                return null;
+              })()}
+
+              {/* Navigation arrows - show if more than 1 media item */}
+              {mediaItems.length > 1 && (
                 <>
                   <button
                     onClick={prevImage}
@@ -503,41 +628,6 @@ export const Post = ({ post }) => {
                   </button>
                 </>
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Video */}
-        {post?.videoUrl && (
-          <div className="mt-4">
-            <video controls className="w-full rounded-lg">
-              <source src={post.videoUrl} type="video/mp4" />
-            </video>
-          </div>
-        )}
-
-        {/* Document */}
-        {post?.documentUrl && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="bg-red-100 p-2 rounded mr-3">
-                  📄
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">PDF Document</p>
-                  <p className="text-xs text-gray-600">Click to view</p>
-                </div>
-              </div>
-            
-              <a 
-                href={post.documentUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600"
-              >
-                View PDF
-              </a>
             </div>
           </div>
         )}
@@ -621,7 +711,7 @@ export const Post = ({ post }) => {
 
       {/* Share Dialog */}
       {showShareDialog === post._id && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 share-dialog">
           <div className="bg-white rounded-lg p-6 w-96 max-w-full mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Share this post</h3>
@@ -701,12 +791,6 @@ export const Post = ({ post }) => {
                 <span className="text-sm font-medium text-gray-900">Share on WhatsApp</span>
               </button>
             </div>
-            
-            {/* Preview URL
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs text-gray-500 mb-1">Post URL:</p>
-              <p className="text-xs text-gray-700 truncate">{shareUrl}</p>
-            </div> */}
           </div>
         </div>
       )}

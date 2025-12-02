@@ -3,6 +3,8 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { axiosInstance } from '../lib/axios';
 import { Plus, Grid3X3, Heart, MessageCircle, Share2, MoreHorizontal, Edit, Trash2, Paperclip, Send } from 'lucide-react';
 
+
+
 export const UserPosts = ({ userName, isOwnProfile }) => {
   const [showAllPosts, setShowAllPosts] = useState(false);
   const [showDropdown, setShowDropdown] = useState(null);
@@ -14,10 +16,13 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
   const [shareUrl, setShareUrl] = useState('');
   const [showComments, setShowComments] = useState({});
   const [newComment, setNewComment] = useState({});
+  const [currentMediaIndex, setCurrentMediaIndex] = useState({}); // per-post media index
   const postsToShow = showAllPosts ? 100 : 2;
   
   const queryClient = useQueryClient();
   const { data: authUser } = useQuery({ queryKey: ["authUser"] });
+
+
 
   // Handle click outside to close share dialog
   useEffect(() => {
@@ -30,6 +35,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showShareDialog]);
+
+
 
   // Query for posts
   const { data: postsData, isLoading, isError, error } = useQuery({
@@ -48,18 +55,60 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     enabled: !!userName,
   });
 
-  // like post mutation
+
+
+  // like post mutation - optimistic update
   const { mutate: likePost, isPending: isLikingPost } = useMutation({
     mutationFn: async (postId) => {
       await axiosInstance.post(`/posts/${postId}/like`);
     },
-    onSuccess: () => {
+    onMutate: async (postId) => {
+      await queryClient.cancelQueries({ queryKey: ['userPosts', userName] });
+
+      const previousData = queryClient.getQueryData(['userPosts', userName]);
+
+      const toggleLikes = (p) => {
+        if (!p) return p;
+        const alreadyLiked = p.likes?.includes(authUser?._id);
+        const newLikes = alreadyLiked
+          ? p.likes.filter((id) => id !== authUser?._id)
+          : [...(p.likes || []), authUser?._id];
+        return { ...p, likes: newLikes };
+      };
+
+      queryClient.setQueryData(['userPosts', userName], (oldData) => {
+        if (!oldData) return oldData;
+
+        if (Array.isArray(oldData)) {
+          return oldData.map((p) => (p._id === postId ? toggleLikes(p) : p));
+        }
+
+        if (Array.isArray(oldData.posts)) {
+          return {
+            ...oldData,
+            posts: oldData.posts.map((p) =>
+              p._id === postId ? toggleLikes(p) : p
+            ),
+          };
+        }
+
+        return oldData;
+      });
+
+      return { previousData };
+    },
+    onError: (error, _postId, context) => {
+      console.error("Error liking post:", error);
+      if (context?.previousData) {
+        queryClient.setQueryData(['userPosts', userName], context.previousData);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['userPosts', userName] });
     },
-    onError: (error) => {
-      console.error("Error liking post:", error);
-    },
   });
+
+
 
   // create comment mutation
   const { mutate: createComment, isPending: isAddingComment } = useMutation({
@@ -74,9 +123,13 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     },
   });
 
+
+
   // Handle both response formats: array directly or { posts: array }
   const posts = Array.isArray(postsData) ? postsData : postsData?.posts || [];
   const displayPosts = posts.slice(0, postsToShow);
+
+
 
   // Handle file upload - single function for all media types
   const handleFileUpload = (e) => {
@@ -91,10 +144,14 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     setNewFiles(prev => [...prev, ...validFiles.map(file => ({ file, type: 'media' }))]);
   };
 
+
+
   // Remove new file
   const removeNewFile = (index) => {
     setNewFiles(prev => prev.filter((_, i) => i !== index));
   };
+
+
 
   // Handle remove existing media - FIXED VERSION
   const handleRemoveMedia = (type, index, publicId, postId) => {
@@ -128,12 +185,16 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     console.log("Media removed from UI!");
   };
 
+
+
   // Handle share button click
   const handleShareClick = (post) => {
     const postUrl = `${window.location.origin}/posts/${post._id}`;
     setShareUrl(postUrl);
     setShowShareDialog(post._id);
   };
+
+
 
   // Copy to clipboard
   const copyToClipboard = () => {
@@ -142,6 +203,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     setShowShareDialog(null);
   };
 
+
+
   // Share on different platforms
   const shareOnLinkedIn = () => {
     const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
@@ -149,11 +212,15 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     setShowShareDialog(null);
   };
 
+
+
   const shareOnTwitter = () => {
     const twitterUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=Check out this post!`;
     window.open(twitterUrl, '_blank');
     setShowShareDialog(null);
   };
+
+
 
   const shareOnFacebook = () => {
     const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
@@ -161,11 +228,15 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     setShowShareDialog(null);
   };
 
+
+
   // Close share dialog
   const closeShareDialog = () => {
     setShowShareDialog(null);
     setShareUrl('');
   };
+
+
 
   // Handle like post
   const handleLikePost = (postId, e) => {
@@ -173,6 +244,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     if (isLikingPost) return;
     likePost(postId);
   };
+
+
 
   // Handle comment toggle
   const handleToggleComments = (postId) => {
@@ -182,6 +255,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     }));
   };
 
+
+
   // Handle comment input change
   const handleCommentChange = (postId, value) => {
     setNewComment(prev => ({
@@ -189,6 +264,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
       [postId]: value
     }));
   };
+
+
 
   // Handle add comment
   const handleAddComment = async (postId, e) => {
@@ -204,12 +281,16 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     }
   };
 
+
+
   // Handle post actions
   const handleEditPost = (post) => {
     setEditingPost(post._id);
     setEditContent(post.content);
     setShowDropdown(null);
   };
+
+
 
   // Enhanced save edit with media
   const handleSaveEdit = async (postId) => {
@@ -256,12 +337,16 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     }
   };
 
+
+
   const handleCancelEdit = () => {
     setEditingPost(null);
     setEditContent('');
     setNewFiles([]);
     setFilesToRemove([]);
   };
+
+
 
   const handleDeletePost = async (postId) => {
     if (window.confirm("Are you sure you want to delete this post?")) {
@@ -276,6 +361,71 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
       }
     }
   };
+
+
+  // Build unified media array (images + video + document) per post
+  const getMediaItems = (post) => {
+    const items = [];
+
+    if (post.images && post.images.length > 0) {
+      items.push(
+        ...post.images.map((img) => ({
+          type: "image",
+          url: img.url,
+          publicId: img.publicId,
+        }))
+      );
+    }
+
+    if (post.videoUrl) {
+      items.push({
+        type: "video",
+        url: post.videoUrl,
+      });
+    }
+
+    if (post.documentUrl) {
+      items.push({
+        type: "document",
+        url: post.documentUrl,
+      });
+    }
+
+    return items;
+  };
+
+
+  const getCurrentMediaIndex = (postId, total) => {
+    const idx = currentMediaIndex[postId] ?? 0;
+    if (total === 0) return 0;
+    return idx >= total ? 0 : idx;
+  };
+
+
+  const nextMedia = (postId, total) => {
+    if (total === 0) return;
+    setCurrentMediaIndex((prev) => {
+      const current = prev[postId] ?? 0;
+      return {
+        ...prev,
+        [postId]: (current + 1) % total,
+      };
+    });
+  };
+
+
+  const prevMedia = (postId, total) => {
+    if (total === 0) return;
+    setCurrentMediaIndex((prev) => {
+      const current = prev[postId] ?? 0;
+      return {
+        ...prev,
+        [postId]: (current - 1 + total) % total,
+      };
+    });
+  };
+
+
 
   // Enhanced loading state
   if (isLoading) {
@@ -306,6 +456,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     );
   }
 
+
+
   // Enhanced error state
   if (isError) {
     return (
@@ -326,6 +478,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     );
   }
 
+
+
   // Enhanced empty state
   if (!posts || posts.length === 0) {
     return (
@@ -345,6 +499,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
     );
   }
 
+
+
   return (
     <div className="bg-white rounded-lg border p-6">
       {/* Header with post count and controls */}
@@ -361,20 +517,22 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
             onClick={() => setShowAllPosts(!showAllPosts)}
             className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
           >
-            {showAllPosts ? (
-              <>
-                <Grid3X3 size={20} />
-                Show less
-              </>
-            ) : (
-              <>
-                <Plus size={20} />
-                Show all posts ({posts.length})
-              </>
-            )}
+          {showAllPosts ? (
+            <>
+              <Grid3X3 size={20} />
+              Show less
+            </>
+          ) : (
+            <>
+              <Plus size={20} />
+              Show all posts ({posts.length})
+            </>
+          )}
           </button>
         )}
       </div>
+
+
 
       {/* Posts Grid */}
       <div className="space-y-4">
@@ -581,75 +739,96 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
                         {post.content}
                       </p>
                       
-                      {/* Enhanced Images Display - IMPROVED */}
-                      {post.images && post.images.length > 0 && (
-                        <div className={`mt-3 ${
-                          post.images.length === 1 ? 'grid-cols-1' :
-                          post.images.length === 2 ? 'grid-cols-2' :
-                          post.images.length === 3 ? 'grid-cols-3' :
-                          post.images.length === 4 ? 'grid-cols-2' :
-                          'grid-cols-3'
-                        } grid gap-2`}>
-                          {post.images.map((image, index) => (
-                            <div key={index} className={`relative overflow-hidden rounded-lg ${
-                              post.images.length === 1 ? 'col-span-1' :
-                              post.images.length === 2 ? 'aspect-video' :
-                              post.images.length === 3 && index === 0 ? 'col-span-2 row-span-2' :
-                              post.images.length === 4 ? 'aspect-square' :
-                              'aspect-square'
-                            }`}>
-                              <img
-                                src={image.url}
-                                alt={`Post image ${index + 1}`}
-                                className="w-full h-full object-cover cursor-pointer"
-                                onClick={() => window.open(image.url, '_blank')}
-                              />
-                              {post.images.length > 4 && index === 3 && (
-                                <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center">
-                                  <span className="text-white text-2xl font-bold">+{post.images.length - 4}</span>
+                      {/* Unified Media Slider (images + video + document) */}
+                      {(() => {
+                        const mediaItems = getMediaItems(post);
+                        const total = mediaItems.length;
+                        if (total === 0) return null;
+
+                        const index = getCurrentMediaIndex(post._id, total);
+                        const currentMedia = mediaItems[index];
+
+                        return (
+                          <div className="mt-3">
+                            <div className="relative border rounded-lg overflow-hidden bg-black/5">
+                              {/* Current media content */}
+                              {currentMedia?.type === "image" && (
+                                <img
+                                  src={currentMedia.url}
+                                  alt="Post media"
+                                  className="w-full h-90 object-cover cursor-pointer"
+                                  onClick={() => window.open(currentMedia.url, "_blank")}
+                                />
+                              )}
+
+                              {currentMedia?.type === "video" && (
+                                <video
+                                  controls
+                                  className="w-full rounded-lg max-h-96 object-cover bg-black"
+                                  preload="metadata"
+                                >
+                                  <source src={currentMedia.url} type="video/mp4" />
+                                  Your browser does not support the video tag.
+                                </video>
+                              )}
+
+                              {currentMedia?.type === "document" && (
+                                <div className="mt-0 p-4 bg-gray-50 rounded-lg border flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <div className="bg-blue-100 p-2 rounded mr-3">
+                                      📄
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-900">
+                                        Document
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        Click to view document
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <a
+                                    href={currentMedia.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600"
+                                  >
+                                    View
+                                  </a>
                                 </div>
                               )}
+
+                              {/* Navigation arrows - show if more than 1 media item */}
+                              {total > 1 && (
+                                <>
+                                  <button
+                                    onClick={() => prevMedia(post._id, total)}
+                                    className="absolute left-3 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 text-gray-800 rounded-full p-3 hover:bg-opacity-100 shadow-lg transition-all"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={() => nextMedia(post._id, total)}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 text-gray-800 rounded-full p-3 hover:bg-opacity-100 shadow-lg transition-all"
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </button>
+                                </>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {/* Video Display */}
-                      {post.videoUrl && (
-                        <div className="mt-3">
-                          <video
-                            controls
-                            className="w-full rounded-lg max-h-96 object-cover"
-                            preload="metadata"
-                          >
-                            <source src={post.videoUrl} type="video/mp4" />
-                            Your browser does not support the video tag.
-                          </video>
-                        </div>
-                      )}
-                      
-                      {/* Document Display */}
-                      {post.documentUrl && (
-                        <div className="mt-3">
-                          <a
-                            href={post.documentUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                          >
-                            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                              📄
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">Document</p>
-                              <p className="text-xs text-gray-500">Click to view document</p>
-                            </div>
-                          </a>
-                        </div>
-                      )}
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                 </div>
+
+
 
                 {/* Engagement Section */}
                 <div className="mt-4 pt-3 border-t border-gray-100">
@@ -675,6 +854,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
                       </button>
                     </div>
 
+
+
                     {/* middle for comment button */}
                     <div>
                       <button 
@@ -698,6 +879,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
                     </div>
                   </div>
                 </div>
+
+
 
                 {/* Comments Section */}
                 {showComments[post._id] && (
@@ -761,6 +944,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
                     </div>
                   </div>
                 )}
+
+
 
                 {/* Share Dialog */}
                 {showShareDialog === post._id && (
@@ -859,6 +1044,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
         ))}
       </div>
 
+
+
       {/* LinkedIn-style Show More Posts Button */}
       {posts.length > 1 && !showAllPosts && (
         <div className="mt-6">
@@ -876,6 +1063,8 @@ export const UserPosts = ({ userName, isOwnProfile }) => {
           </div>
         </div>
       )}
+
+
 
       {/* Show Less Posts Button */}
       {showAllPosts && posts.length > 1 && (

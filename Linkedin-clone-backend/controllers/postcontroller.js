@@ -182,6 +182,7 @@ const createComment = async (req, res) => {
 };
 
 
+
 // like post route:-
 const likePost = async (req, res) => {
   try {
@@ -205,17 +206,34 @@ const likePost = async (req, res) => {
     // Send email notification to post author (if not liking own post)
     if (post.author._id.toString() !== userId.toString()) {
       try {
-        const postUrl = `${process.env.CLIENT_URL}/post/${id}`;
-        await sendLikeNotificationEmail(
-          post.author.email,
-          post.author.firstName,
-          req.user.firstName,
-          postUrl,
-          post.content
-        );
+        await Notification.create ({
+          recipient: post.author._id,
+          type: "like",
+          relatedUser: userId,
+          relatedPost: post._id
+        });
       } catch (error) {
-        console.error("Error sending like notification email:", error);
+        consoe.error("Error creating like notification", error);
       }
+
+
+      const postUrl = `${process.env.CLIENT_URL}/post/${id}`;
+      const recipientEmail = post.author.email;
+      const recipientName = post.author.firstName;
+      const likerName = req.user.firstName;
+      const postContent = post.content;
+
+      setImmediate(() => {
+        sendLikeNotificationEmail(
+          recipientEmail,
+          recipientName,
+          likerName,
+          postUrl,
+          postContent
+        ).catch((error) => {
+          console.error("Error sending like notification email:", error);
+        });
+      });
     }
 
     res.status(200).json({ message: "Post liked successfully" });
