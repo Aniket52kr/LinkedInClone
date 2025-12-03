@@ -44,6 +44,11 @@ const messageSchema = new mongoose.Schema(
       default: "",
     },
 
+    fileName: {
+      type: String,
+      default: "",
+    },
+
     isRead: {
       type: Boolean,
       default: false,

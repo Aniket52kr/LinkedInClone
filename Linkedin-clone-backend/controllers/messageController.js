@@ -2,7 +2,7 @@ const Message = require("../models/message");
 const User = require("../models/user");
 const { emitSocketEvent } = require("../lib/socket");
 const multer = require("multer");
-const cloudinary = require("../lib/cloudinary");
+const { cloudinary } = require("../lib/cloudinary");
 const { sendMessageNotificationEmail } = require("../emails/emailHandlers");
 
  
@@ -149,35 +149,38 @@ exports.sendMessage = async (req, res) => {
     await message.populate('sender', 'firstName lastName profilePicture');
     await message.populate('recipient', 'firstName lastName profilePicture');
 
-    // Get recipient details for email
-    const recipient = await User.findById(recipientId, "firstName email userName");
-
-    // Send email notification for new message (only for text messages)
-    if (messageType === 'text' && content && recipient) {
-      try {
-        const profileUrl = process.env.CLIENT_URL + "/messages";
-        await sendMessageNotificationEmail(
-          recipient.email,
-          recipient.firstName,
-          message.sender.firstName,
-          content,
-          profileUrl
-        );
-      } catch (error) {
-        console.error("Error sending message notification email:", error);
-      }
-    }
-
-    
-    // Emit socket event for real-time delivery
+    // Emit socket event for real-time delivery FIRST
     const io = req.app.get('io');
     if (io) {
       io.to(recipientId).emit('newMessage', message);
       io.to(senderId).emit('newMessage', message);
     }
 
+    // Respond immediately after DB + socket
     res.status(201).json(message);
+
+    // Send email notification in background (only for text messages)
+    if (messageType === 'text' && content) {
+      setImmediate(async () => {
+        try {
+          const recipient = await User.findById(recipientId, "firstName email userName");
+          if (!recipient) return;
+
+          const profileUrl = process.env.CLIENT_URL + "/messages";
+          await sendMessageNotificationEmail(
+            recipient.email,
+            recipient.firstName,
+            message.sender.firstName,
+            content,
+            profileUrl
+          );
+        } catch (error) {
+          console.error("Error sending message notification email:", error);
+        }
+      });
+    }
   } catch (error) {
+    console.error("Error sending message:", error);
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
@@ -242,6 +245,22 @@ exports.markAsRead = async (req, res) => {
       { isRead: true, readAt: new Date() }
     );
 
+
+    const io = req.app.get('io');
+    if(io) {
+      // Notify the other user that their messages have been read
+      io.to(userId).emit("messagesRead", {
+        readerId: currentUserId,
+        senderId: userId,
+      });
+
+      // also notify current user to update their own conversation list
+      io.to(currentUserId).emit("messagesRead", {
+        readerId: currentUserId,
+        senderId: userId,
+      });
+    }
+
     res.status(200).json({ message: "Messages marked as read" });
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
@@ -261,6 +280,7 @@ exports.sendMessageWithFile = async (req, res) => {
     let fileUrl = null;
     let filePublicId = null;
     let messageType = 'text';
+    let fileName = '';
 
     // Handle file upload
     if (req.file) {
@@ -276,6 +296,7 @@ exports.sendMessageWithFile = async (req, res) => {
       fileUrl = uploadResult.secure_url;
       filePublicId = uploadResult.public_id;
       messageType = isImage ? 'image' : 'file';
+      fileName = req.file.originalname;
     }
 
     // For file messages, content can be optional
@@ -288,6 +309,7 @@ exports.sendMessageWithFile = async (req, res) => {
       messageType,
       fileUrl,
       filePublicId,
+      fileName,
     });
 
     await message.save();
@@ -302,12 +324,31 @@ exports.sendMessageWithFile = async (req, res) => {
     }
 
     res.status(201).json(message);
+
+    // Send email notification in background (for file messages too)
+    setImmediate(async () => {
+      try {
+        const recipient = await User.findById(recipientId, "firstName email userName");
+        if (!recipient) return;
+
+        const profileUrl = process.env.CLIENT_URL + "/messages";
+        const emailContent = content || `Sent a file: ${fileName}`;
+        await sendMessageNotificationEmail(
+          recipient.email,
+          recipient.firstName,
+          message.sender.firstName,
+          emailContent,
+          profileUrl
+        );
+      } catch (error) {
+        console.error("Error sending file message notification email:", error);
+      }
+    });
   } catch (error) {
     console.error('File upload error:', error);
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
-
 
 
 
