@@ -51,6 +51,11 @@ export const SocketProvider = ({ children }) => {
         console.log("CONTEXT: Emitted joinUser for:", authUser._id);
       });
 
+      newSocket.on("reconnect", () => {
+        console.log("CONTEXT: socket reconnected, re-joining user", authUser._id);
+        newSocket.emit("joinUser", authUser._id);
+      });
+
       newSocket.on("connect_error", (error) => {
         console.error("CONTEXT: Socket connection error:", error);
       });
