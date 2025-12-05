@@ -49,10 +49,10 @@ jobs:
         sudo docker pull aniket52kr/linkedin-clone-frontend:latest
         
         # Stop existing containers
-        sudo docker-compose -f linkedin-clone/docker-compose.yml down || true
+        sudo docker-compose down || true
         
         # Start new containers
-        sudo docker-compose -f linkedin-clone/docker-compose.yml up -d
+        sudo docker-compose up -d
         
         # Clean up old images
         sudo docker image prune -f
