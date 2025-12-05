@@ -21,6 +21,10 @@ services:
       - ./Linkedin-clone-frontend/.env
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./ssl/fullchain.pem:/etc/ssl/certs/fullchain.pem
+      - ./ssl/privkey.pem:/etc/ssl/private/privkey.pem
     depends_on:
       - backend
     networks:
