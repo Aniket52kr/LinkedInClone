@@ -44,9 +44,9 @@ jobs:
     - name: Deploy to EC2
       run: |
         echo "Deployment started"
-        cd linkedin-clone
+        cd /home/ec2-user/linkedin-clone
 
-        
+
         # Pull latest images
         sudo docker pull aniket52kr/linkedin-clone-backend:latest
         sudo docker pull aniket52kr/linkedin-clone-frontend:latest
