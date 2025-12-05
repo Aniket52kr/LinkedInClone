@@ -1,0 +1,58 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build and push backend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./Linkedin-clone-backend
+        push: true
+        tags: aniket52kr/linkedin-clone-backend:latest
+    
+    - name: Build and push frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./Linkedin-clone-frontend
+        push: true
+        tags: aniket52kr/linkedin-clone-frontend:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted
+    steps:
+    - name: Deploy to EC2
+      run: |
+        echo "Deployment started"
+        # Pull latest images
+        sudo docker pull aniket52kr/linkedin-clone-backend:latest
+        sudo docker pull aniket52kr/linkedin-clone-frontend:latest
+        
+        # Stop existing containers
+        sudo docker-compose -f /home/ec2-user/linkedin-clone/docker-compose.yml down || true
+        
+        # Start new containers
+        sudo docker-compose -f /home/ec2-user/linkedin-clone/docker-compose.yml up -d
+        
+        # Clean up old images
+        sudo docker image prune -f
