@@ -44,7 +44,7 @@ jobs:
     - name: Deploy to EC2
       run: |
         echo "Deployment started"
-        cd /home/ec2-user/linkedin-clone
+        cd ~/linkedin-clone
 
 
         # Pull latest images
