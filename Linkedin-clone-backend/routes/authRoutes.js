@@ -5,7 +5,7 @@ const {
   register,
   login,
   logout,
-  getCurrentUser
+  getCurrentUser,
 } = require('../controllers/authControllers'); 
 const isLoggedIn = require('../middleware/isLoggedIn');
 
